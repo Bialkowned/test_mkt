@@ -168,16 +168,27 @@ class GitHubCallbackBody(BaseModel):
 
 # --- V2 Structured Jobs + Bidding Models ---
 
+class TestPlanPage(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    url: str = ""
+
 class TestPlanItem(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: str = ""
     service_type: str = Field(..., pattern="^(test|record|document|voiceover)$")
     proposed_price: float = Field(..., gt=0, le=5000)
     estimated_minutes: int = Field(..., ge=1)
+    pages: List[TestPlanPage] = []
+
+class RoleCredentials(BaseModel):
+    email: str = ""
+    password: str = ""
+    notes: str = ""
 
 class TestPlanRole(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str = ""
+    credentials: Optional[RoleCredentials] = None
     items: List[TestPlanItem] = Field(..., min_length=1)
 
 class JobCreateV2(BaseModel):

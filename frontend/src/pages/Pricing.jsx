@@ -57,12 +57,12 @@ const SERVICE_TYPES = [
 export default function Pricing({ user }) {
   // Configurator state
   const [roles, setRoles] = useState([
-    { id: 1, name: 'Default User', items: [{ id: 1, service: 'test', price: 25 }] },
+    { id: 1, name: 'Default User', items: [{ id: 1, service: 'test', price: 25, pages: [] }] },
   ])
 
   const addRole = () => {
     const id = Date.now()
-    setRoles([...roles, { id, name: '', items: [{ id: id + 1, service: 'test', price: 25 }] }])
+    setRoles([...roles, { id, name: '', items: [{ id: id + 1, service: 'test', price: 25, pages: [] }] }])
   }
 
   const removeRole = (roleId) => {
@@ -76,7 +76,7 @@ export default function Pricing({ user }) {
 
   const addItem = (roleId) => {
     setRoles(roles.map((r) => r.id === roleId ? {
-      ...r, items: [...r.items, { id: Date.now(), service: 'test', price: 25 }]
+      ...r, items: [...r.items, { id: Date.now(), service: 'test', price: 25, pages: [] }]
     } : r))
   }
 
@@ -93,6 +93,31 @@ export default function Pricing({ user }) {
     } : r))
   }
 
+  const addPage = (roleId, itemId) => {
+    setRoles(roles.map((r) => r.id === roleId ? {
+      ...r, items: r.items.map((i) => i.id === itemId ? {
+        ...i, pages: [...i.pages, { id: Date.now(), name: '' }]
+      } : i)
+    } : r))
+  }
+
+  const removePage = (roleId, itemId, pageId) => {
+    setRoles(roles.map((r) => r.id === roleId ? {
+      ...r, items: r.items.map((i) => i.id === itemId ? {
+        ...i, pages: i.pages.filter((p) => p.id !== pageId)
+      } : i)
+    } : r))
+  }
+
+  const updatePageName = (roleId, itemId, pageId, name) => {
+    setRoles(roles.map((r) => r.id === roleId ? {
+      ...r, items: r.items.map((i) => i.id === itemId ? {
+        ...i, pages: i.pages.map((p) => p.id === pageId ? { ...p, name } : p)
+      } : i)
+    } : r))
+  }
+
+  const totalPages = roles.reduce((s, r) => s + r.items.reduce((si, i) => si + (i.pages?.length || 0), 0), 0)
   const totalItems = roles.reduce((s, r) => s + r.items.length, 0)
   const proposedTotal = roles.reduce((s, r) => s + r.items.reduce((si, i) => si + (parseFloat(i.price) || 0), 0), 0)
   const platformFee = Math.round(proposedTotal * PLATFORM_FEE_RATE * 100) / 100
@@ -166,26 +191,52 @@ export default function Pricing({ user }) {
 
                   <div className="space-y-2">
                     {role.items.map((item) => (
-                      <div key={item.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2.5">
-                        <select
-                          className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-primary-500"
-                          value={item.service}
-                          onChange={(e) => updateItem(role.id, item.id, 'service', e.target.value)}
-                        >
-                          {SERVICE_TYPES.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
-                        </select>
-                        <div className="flex items-center gap-1 ml-auto">
-                          <span className="text-xs text-gray-400">$</span>
-                          <input
-                            type="number"
-                            min={1}
-                            className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-primary-500"
-                            value={item.price}
-                            onChange={(e) => updateItem(role.id, item.id, 'price', parseFloat(e.target.value) || 0)}
-                          />
+                      <div key={item.id}>
+                        <div className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2.5">
+                          <select
+                            className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-primary-500"
+                            value={item.service}
+                            onChange={(e) => updateItem(role.id, item.id, 'service', e.target.value)}
+                          >
+                            {SERVICE_TYPES.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => addPage(role.id, item.id)}
+                            className="text-xs text-gray-400 hover:text-primary-600"
+                            title="Add pages in this flow"
+                          >
+                            {item.pages?.length > 0 ? `${item.pages.length} pg` : '+ pages'}
+                          </button>
+                          <div className="flex items-center gap-1 ml-auto">
+                            <span className="text-xs text-gray-400">$</span>
+                            <input
+                              type="number"
+                              min={1}
+                              className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-primary-500"
+                              value={item.price}
+                              onChange={(e) => updateItem(role.id, item.id, 'price', parseFloat(e.target.value) || 0)}
+                            />
+                          </div>
+                          {role.items.length > 1 && (
+                            <button onClick={() => removeItem(role.id, item.id)} className="text-gray-400 hover:text-red-500 text-xs">x</button>
+                          )}
                         </div>
-                        {role.items.length > 1 && (
-                          <button onClick={() => removeItem(role.id, item.id)} className="text-gray-400 hover:text-red-500 text-xs">x</button>
+                        {item.pages?.length > 0 && (
+                          <div className="ml-4 mt-1 mb-1 pl-3 border-l-2 border-primary-200 space-y-1">
+                            {item.pages.map((page) => (
+                              <div key={page.id} className="flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  placeholder="Page name"
+                                  className="flex-1 px-2 py-0.5 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-primary-500"
+                                  value={page.name}
+                                  onChange={(e) => updatePageName(role.id, item.id, page.id, e.target.value)}
+                                />
+                                <button onClick={() => removePage(role.id, item.id, page.id)} className="text-gray-300 hover:text-red-400 text-xs">x</button>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                     ))}
@@ -219,6 +270,12 @@ export default function Pricing({ user }) {
                       </div>
                     )
                   })}
+                  {totalPages > 0 && (
+                    <div className="flex justify-between text-gray-400 text-xs">
+                      <span>Total pages</span>
+                      <span>{totalPages}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-gray-600 pt-2 border-t border-gray-100">
                     <span>Subtotal ({totalItems} items)</span>
                     <span>${proposedTotal.toFixed(2)}</span>

@@ -53,7 +53,8 @@ export default function CreateJob({ user }) {
       id: crypto.randomUUID(),
       name: '',
       description: '',
-      items: [{ id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_minutes: 15 }],
+      credentials: { email: '', password: '', notes: '' },
+      items: [{ id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_minutes: 15, pages: [] }],
     },
   ])
 
@@ -74,7 +75,8 @@ export default function CreateJob({ user }) {
       id: crypto.randomUUID(),
       name: '',
       description: '',
-      items: [{ id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_minutes: 15 }],
+      credentials: { email: '', password: '', notes: '' },
+      items: [{ id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_minutes: 15, pages: [] }],
     }])
   }
 
@@ -90,7 +92,7 @@ export default function CreateJob({ user }) {
   const addItem = (roleId) => {
     setRoles(roles.map((r) => r.id === roleId ? {
       ...r,
-      items: [...r.items, { id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_minutes: 15 }],
+      items: [...r.items, { id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_minutes: 15, pages: [] }],
     } : r))
   }
 
@@ -106,6 +108,43 @@ export default function CreateJob({ user }) {
     setRoles(roles.map((r) => r.id === roleId ? {
       ...r,
       items: r.items.map((item) => item.id === itemId ? { ...item, [field]: value } : item),
+    } : r))
+  }
+
+  const updateCredentials = (roleId, field, value) => {
+    setRoles(roles.map((r) => r.id === roleId ? {
+      ...r,
+      credentials: { ...r.credentials, [field]: value },
+    } : r))
+  }
+
+  const addPage = (roleId, itemId) => {
+    setRoles(roles.map((r) => r.id === roleId ? {
+      ...r,
+      items: r.items.map((item) => item.id === itemId ? {
+        ...item,
+        pages: [...item.pages, { id: crypto.randomUUID(), name: '', url: '' }],
+      } : item),
+    } : r))
+  }
+
+  const removePage = (roleId, itemId, pageId) => {
+    setRoles(roles.map((r) => r.id === roleId ? {
+      ...r,
+      items: r.items.map((item) => item.id === itemId ? {
+        ...item,
+        pages: item.pages.filter((p) => p.id !== pageId),
+      } : item),
+    } : r))
+  }
+
+  const updatePage = (roleId, itemId, pageId, field, value) => {
+    setRoles(roles.map((r) => r.id === roleId ? {
+      ...r,
+      items: r.items.map((item) => item.id === itemId ? {
+        ...item,
+        pages: item.pages.map((p) => p.id === pageId ? { ...p, [field]: value } : p),
+      } : item),
     } : r))
   }
 
@@ -125,12 +164,21 @@ export default function CreateJob({ user }) {
         roles: roles.map((r) => ({
           name: r.name,
           description: r.description,
+          credentials: (r.credentials?.email || r.credentials?.password) ? {
+            email: r.credentials.email,
+            password: r.credentials.password,
+            notes: r.credentials.notes || '',
+          } : null,
           items: r.items.map((item) => ({
             title: item.title,
             description: item.description,
             service_type: item.service_type,
             proposed_price: parseFloat(item.proposed_price),
             estimated_minutes: parseInt(item.estimated_minutes),
+            pages: item.pages.filter((p) => p.name.trim()).map((p) => ({
+              name: p.name,
+              url: p.url || '',
+            })),
           })),
         })),
       }
@@ -292,6 +340,34 @@ export default function CreateJob({ user }) {
                   )}
                 </div>
 
+                {/* Role Credentials */}
+                <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-amber-700 mb-2">Login credentials for this role (shared with assigned tester)</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Email / username"
+                      className="px-2.5 py-1.5 border border-amber-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-400"
+                      value={role.credentials?.email || ''}
+                      onChange={(e) => updateCredentials(role.id, 'email', e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Password"
+                      className="px-2.5 py-1.5 border border-amber-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-400"
+                      value={role.credentials?.password || ''}
+                      onChange={(e) => updateCredentials(role.id, 'password', e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Notes (optional)"
+                      className="px-2.5 py-1.5 border border-amber-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-400"
+                      value={role.credentials?.notes || ''}
+                      onChange={(e) => updateCredentials(role.id, 'notes', e.target.value)}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-3">
                   {role.items.map((item, ii) => (
                     <div key={item.id} className="bg-gray-50 border border-gray-100 rounded-lg p-4">
@@ -349,6 +425,40 @@ export default function CreateJob({ user }) {
                               />
                               <span className="text-xs text-gray-400">min</span>
                             </div>
+                          </div>
+
+                          {/* Pages in this flow */}
+                          <div className="mt-2">
+                            {item.pages.length > 0 && (
+                              <div className="space-y-1.5 pl-3 border-l-2 border-primary-200 mb-2">
+                                {item.pages.map((page) => (
+                                  <div key={page.id} className="flex items-center gap-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Page name"
+                                      className="flex-1 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-primary-500"
+                                      value={page.name}
+                                      onChange={(e) => updatePage(role.id, item.id, page.id, 'name', e.target.value)}
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="/path (optional)"
+                                      className="w-32 px-2 py-1 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-primary-500"
+                                      value={page.url}
+                                      onChange={(e) => updatePage(role.id, item.id, page.id, 'url', e.target.value)}
+                                    />
+                                    <button onClick={() => removePage(role.id, item.id, page.id)} className="text-gray-300 hover:text-red-500 text-xs">x</button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => addPage(role.id, item.id)}
+                              className="text-xs text-primary-500 hover:text-primary-700"
+                            >
+                              + Add page
+                            </button>
                           </div>
                         </div>
                         {role.items.length > 1 && (
@@ -452,22 +562,47 @@ export default function CreateJob({ user }) {
                   <h3 className="font-semibold text-gray-900">{role.name}</h3>
                   {role.description && <span className="text-xs text-gray-400">— {role.description}</span>}
                 </div>
+                {(role.credentials?.email || role.credentials?.password) && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-2 text-xs text-amber-700">
+                    <span className="font-medium">Credentials:</span>{' '}
+                    {role.credentials.email && <span>{role.credentials.email}</span>}
+                    {role.credentials.password && <span> / {role.credentials.password}</span>}
+                    {role.credentials.notes && <span className="text-amber-500 ml-2">({role.credentials.notes})</span>}
+                  </div>
+                )}
                 <div className="space-y-2">
                   {role.items.map((item) => {
                     const st = SERVICE_TYPES.find((s) => s.id === item.service_type)
+                    const pageCount = item.pages.filter((p) => p.name.trim()).length
                     return (
-                      <div key={item.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5">
-                        <div className="flex items-center gap-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded ${st?.color || 'bg-gray-100 text-gray-600'}`}>
-                            <ServiceIcon type={item.service_type} className="w-3 h-3" />
-                            {st?.name}
-                          </span>
-                          <span className="text-sm text-gray-900">{item.title}</span>
+                      <div key={item.id}>
+                        <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5">
+                          <div className="flex items-center gap-3">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded ${st?.color || 'bg-gray-100 text-gray-600'}`}>
+                              <ServiceIcon type={item.service_type} className="w-3 h-3" />
+                              {st?.name}
+                            </span>
+                            <span className="text-sm text-gray-900">{item.title}</span>
+                            {pageCount > 0 && (
+                              <span className="text-xs text-gray-400">{pageCount} page{pageCount !== 1 ? 's' : ''}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="text-gray-500">{item.estimated_minutes} min</span>
+                            <span className="font-semibold text-gray-900">${parseFloat(item.proposed_price).toFixed(2)}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="text-gray-500">{item.estimated_minutes} min</span>
-                          <span className="font-semibold text-gray-900">${parseFloat(item.proposed_price).toFixed(2)}</span>
-                        </div>
+                        {pageCount > 0 && (
+                          <div className="ml-8 mt-1 mb-1 pl-3 border-l-2 border-gray-200 space-y-0.5">
+                            {item.pages.filter((p) => p.name.trim()).map((page) => (
+                              <div key={page.id} className="text-xs text-gray-500 flex items-center gap-2">
+                                <span className="w-1 h-1 rounded-full bg-gray-300" />
+                                <span>{page.name}</span>
+                                {page.url && <span className="text-gray-300">{page.url}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )
                   })}

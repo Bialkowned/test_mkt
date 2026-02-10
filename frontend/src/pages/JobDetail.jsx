@@ -338,33 +338,57 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
                 <span className="text-sm font-medium text-gray-700">${roleTotal.toFixed(2)}</span>
               </button>
               {expanded && (
-                <div className="px-6 pb-4 space-y-2">
+                <div className="px-6 pb-4 space-y-1">
+                  {role.credentials && (role.credentials.email || role.credentials.password) && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-2 text-xs text-amber-700">
+                      <span className="font-medium">Login:</span>{' '}
+                      {role.credentials.email && <span>{role.credentials.email}</span>}
+                      {role.credentials.password && <span> / {role.credentials.password}</span>}
+                      {role.credentials.notes && <span className="text-amber-500 ml-2">({role.credentials.notes})</span>}
+                    </div>
+                  )}
                   {role.items.map((item) => {
                     const itemSubs = submissions.filter((s) => s.item_id === item.id)
                     const itemStatus = itemSubs.length > 0 ? itemSubs[0].status : 'open'
                     return (
-                      <div key={item.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5">
-                        <div className="flex items-center gap-3">
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[item.service_type] || 'bg-gray-100 text-gray-600'}`}>
-                            {item.service_type}
-                          </span>
-                          <span className="text-sm text-gray-900">{item.title}</span>
-                          {item.description && <span className="text-xs text-gray-400 hidden sm:inline">— {item.description}</span>}
-                        </div>
-                        <div className="flex items-center gap-3 text-sm">
-                          <span className="text-xs text-gray-400">{item.estimated_minutes} min</span>
-                          <span className="font-medium text-gray-900">${item.proposed_price.toFixed(2)}</span>
-                          {itemSubs.length > 0 && (
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              itemStatus === 'approved' ? 'bg-green-100 text-green-700' :
-                              itemStatus === 'submitted' ? 'bg-amber-100 text-amber-700' :
-                              itemStatus === 'draft' ? 'bg-gray-100 text-gray-600' :
-                              'bg-gray-100 text-gray-600'
-                            }`}>
-                              {itemStatus}
+                      <div key={item.id}>
+                        <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5">
+                          <div className="flex items-center gap-3">
+                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[item.service_type] || 'bg-gray-100 text-gray-600'}`}>
+                              {item.service_type}
                             </span>
-                          )}
+                            <span className="text-sm text-gray-900">{item.title}</span>
+                            {item.description && <span className="text-xs text-gray-400 hidden sm:inline">— {item.description}</span>}
+                            {item.pages?.length > 0 && (
+                              <span className="text-xs text-gray-400">{item.pages.length} page{item.pages.length !== 1 ? 's' : ''}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="text-xs text-gray-400">{item.estimated_minutes} min</span>
+                            <span className="font-medium text-gray-900">${item.proposed_price.toFixed(2)}</span>
+                            {itemSubs.length > 0 && (
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                itemStatus === 'approved' ? 'bg-green-100 text-green-700' :
+                                itemStatus === 'submitted' ? 'bg-amber-100 text-amber-700' :
+                                itemStatus === 'draft' ? 'bg-gray-100 text-gray-600' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {itemStatus}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        {item.pages?.length > 0 && (
+                          <div className="ml-8 mt-1 mb-1 pl-3 border-l-2 border-gray-200 space-y-0.5">
+                            {item.pages.map((page, pi) => (
+                              <div key={pi} className="text-xs text-gray-500 flex items-center gap-2">
+                                <span className="w-1 h-1 rounded-full bg-gray-300" />
+                                <span>{page.name}</span>
+                                {page.url && <span className="text-gray-300">{page.url}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
