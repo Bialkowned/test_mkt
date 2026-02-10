@@ -57,12 +57,12 @@ const SERVICE_TYPES = [
 export default function Pricing({ user }) {
   // Configurator state
   const [roles, setRoles] = useState([
-    { id: 1, name: 'Default User', items: [{ id: 1, service: 'test', price: 25, pages: [] }] },
+    { id: 1, name: 'Default User', items: [{ id: 1, title: '', service: 'test', price: 25, pages: [] }] },
   ])
 
   const addRole = () => {
     const id = Date.now()
-    setRoles([...roles, { id, name: '', items: [{ id: id + 1, service: 'test', price: 25, pages: [] }] }])
+    setRoles([...roles, { id, name: '', items: [{ id: id + 1, title: '', service: 'test', price: 25, pages: [] }] }])
   }
 
   const removeRole = (roleId) => {
@@ -76,7 +76,7 @@ export default function Pricing({ user }) {
 
   const addItem = (roleId) => {
     setRoles(roles.map((r) => r.id === roleId ? {
-      ...r, items: [...r.items, { id: Date.now(), service: 'test', price: 25, pages: [] }]
+      ...r, items: [...r.items, { id: Date.now(), title: '', service: 'test', price: 25, pages: [] }]
     } : r))
   }
 
@@ -189,25 +189,30 @@ export default function Pricing({ user }) {
                     )}
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {role.items.map((item) => (
-                      <div key={item.id}>
-                        <div className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2.5">
+                      <div key={item.id} className="bg-gray-50 border border-gray-100 rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <input
+                            type="text"
+                            placeholder="Item title (e.g. Checkout Flow)"
+                            className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                            value={item.title || ''}
+                            onChange={(e) => updateItem(role.id, item.id, 'title', e.target.value)}
+                          />
+                          {role.items.length > 1 && (
+                            <button onClick={() => removeItem(role.id, item.id)} className="ml-2 text-gray-400 hover:text-red-500 text-xs mt-1">remove</button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 mb-3">
                           <select
-                            className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-primary-500"
+                            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-primary-500"
                             value={item.service}
                             onChange={(e) => updateItem(role.id, item.id, 'service', e.target.value)}
                           >
                             {SERVICE_TYPES.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
                           </select>
-                          <button
-                            type="button"
-                            onClick={() => addPage(role.id, item.id)}
-                            className="text-xs text-gray-400 hover:text-primary-600"
-                            title="Add pages in this flow"
-                          >
-                            {item.pages?.length > 0 ? `${item.pages.length} pg` : '+ pages'}
-                          </button>
                           <div className="flex items-center gap-1 ml-auto">
                             <span className="text-xs text-gray-400">$</span>
                             <input
@@ -218,31 +223,41 @@ export default function Pricing({ user }) {
                               onChange={(e) => updateItem(role.id, item.id, 'price', parseFloat(e.target.value) || 0)}
                             />
                           </div>
-                          {role.items.length > 1 && (
-                            <button onClick={() => removeItem(role.id, item.id)} className="text-gray-400 hover:text-red-500 text-xs">x</button>
-                          )}
                         </div>
-                        {item.pages?.length > 0 && (
-                          <div className="ml-4 mt-1 mb-1 pl-3 border-l-2 border-primary-200 space-y-1">
-                            {item.pages.map((page) => (
-                              <div key={page.id} className="flex items-center gap-1.5">
-                                <input
-                                  type="text"
-                                  placeholder="Page name"
-                                  className="flex-1 px-2 py-0.5 border border-gray-200 rounded text-xs focus:ring-1 focus:ring-primary-500"
-                                  value={page.name}
-                                  onChange={(e) => updatePageName(role.id, item.id, page.id, e.target.value)}
-                                />
-                                <button onClick={() => removePage(role.id, item.id, page.id)} className="text-gray-300 hover:text-red-400 text-xs">x</button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+
+                        {/* Pages in this flow */}
+                        <div className="border-t border-gray-200 pt-3">
+                          <p className="text-xs font-medium text-gray-500 mb-2">Pages in this flow</p>
+                          {item.pages?.length > 0 && (
+                            <div className="space-y-1.5 mb-2">
+                              {item.pages.map((page) => (
+                                <div key={page.id} className="flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-primary-400 shrink-0" />
+                                  <input
+                                    type="text"
+                                    placeholder="Page name (e.g. Cart Page)"
+                                    className="flex-1 px-2.5 py-1 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                                    value={page.name}
+                                    onChange={(e) => updatePageName(role.id, item.id, page.id, e.target.value)}
+                                  />
+                                  <button onClick={() => removePage(role.id, item.id, page.id)} className="text-gray-300 hover:text-red-400 text-xs px-1">x</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => addPage(role.id, item.id)}
+                            className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                          >
+                            + Add page
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
 
-                  <button onClick={() => addItem(role.id)} className="mt-2 text-xs text-primary-600 hover:text-primary-700 font-medium">
+                  <button onClick={() => addItem(role.id)} className="mt-3 text-sm text-primary-600 hover:text-primary-700 font-medium">
                     + Add item
                   </button>
                 </div>
@@ -263,10 +278,13 @@ export default function Pricing({ user }) {
                 <div className="space-y-2 text-sm">
                   {roles.map((r) => {
                     const roleTotal = r.items.reduce((s, i) => s + (parseFloat(i.price) || 0), 0)
+                    const rolePages = r.items.reduce((s, i) => s + (i.pages?.length || 0), 0)
                     return (
-                      <div key={r.id} className="flex justify-between text-gray-600">
-                        <span className="truncate">{r.name || 'Unnamed'} ({r.items.length})</span>
-                        <span>${roleTotal.toFixed(2)}</span>
+                      <div key={r.id}>
+                        <div className="flex justify-between text-gray-600">
+                          <span className="truncate">{r.name || 'Unnamed'} ({r.items.length} item{r.items.length !== 1 ? 's' : ''}{rolePages > 0 ? `, ${rolePages} pg` : ''})</span>
+                          <span>${roleTotal.toFixed(2)}</span>
+                        </div>
                       </div>
                     )
                   })}
