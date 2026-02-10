@@ -6,9 +6,45 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
+const SERVICE_TYPE_COLORS = {
+  test: 'bg-blue-100 text-blue-700',
+  record: 'bg-purple-100 text-purple-700',
+  document: 'bg-emerald-100 text-emerald-700',
+  voiceover: 'bg-amber-100 text-amber-700',
+}
+
+const BID_STATUS_COLORS = {
+  pending: 'bg-amber-100 text-amber-700',
+  accepted: 'bg-green-100 text-green-700',
+  rejected: 'bg-red-100 text-red-700',
+  withdrawn: 'bg-gray-100 text-gray-600',
+}
+
+function isV2Job(job) {
+  return job.version === 2 || !!job.roles
+}
+
+function getV2Info(job) {
+  if (!isV2Job(job)) return null
+  const allItems = job.roles?.flatMap((r) => r.items) || []
+  const serviceTypes = [...new Set(allItems.map((i) => i.service_type))]
+  const prices = allItems.map((i) => i.proposed_price).filter(Boolean)
+  const priceMin = prices.length ? Math.min(...prices) : 0
+  const priceMax = prices.length ? Math.max(...prices) : 0
+  return {
+    serviceTypes,
+    priceMin,
+    priceMax,
+    itemCount: allItems.length,
+    roleCount: job.roles?.length || 0,
+    proposedTotal: job.proposed_total || prices.reduce((a, b) => a + b, 0),
+  }
+}
+
 export default function Jobs({ user }) {
   const [jobs, setJobs] = useState([])
   const [projects, setProjects] = useState([])
+  const [bids, setBids] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -22,13 +58,12 @@ export default function Jobs({ user }) {
     max_testers: 3,
     estimated_time_minutes: 30,
   })
-
-  // Payment step state
-  const [paymentStep, setPaymentStep] = useState(null) // { job, clientSecret }
+  const [paymentStep, setPaymentStep] = useState(null)
 
   useEffect(() => {
     fetchJobs()
     if (user.role === 'builder') fetchProjects()
+    if (user.role === 'tester') fetchBids()
   }, [])
 
   const fetchJobs = async () => {
@@ -52,6 +87,13 @@ export default function Jobs({ user }) {
     } catch {}
   }
 
+  const fetchBids = async () => {
+    try {
+      const res = await axios.get('/api/bids')
+      setBids(res.data)
+    } catch {}
+  }
+
   const handleCreate = async (e) => {
     e.preventDefault()
     setSubmitting(true)
@@ -59,7 +101,6 @@ export default function Jobs({ user }) {
     try {
       const payload = { ...form, payout_amount: parseFloat(form.payout_amount) }
       const res = await axios.post('/api/jobs', payload)
-      // Backend returns job + client_secret — transition to payment step
       setPaymentStep({ job: res.data, clientSecret: res.data.client_secret })
       setShowForm(false)
     } catch (err) {
@@ -70,7 +111,6 @@ export default function Jobs({ user }) {
   }
 
   const handlePaymentSuccess = (job) => {
-    // Job is now open — add to list and reset state
     setPaymentStep(null)
     setJobs([{ ...job, status: 'open' }, ...jobs.filter((j) => j.id !== job.id)])
     setForm({ project_id: projects[0]?.id || '', title: '', description: '', payout_amount: '', max_testers: 3, estimated_time_minutes: 30 })
@@ -81,7 +121,6 @@ export default function Jobs({ user }) {
     try {
       const res = await axios.post(`/api/jobs/${job.id}/payment-intent`)
       if (res.data.already_paid) {
-        // Already paid — just refresh
         fetchJobs()
         return
       }
@@ -113,7 +152,7 @@ export default function Jobs({ user }) {
     )
   }
 
-  // Payment step overlay
+  // Payment step overlay (v1 jobs)
   if (paymentStep) {
     const { job, clientSecret } = paymentStep
     return (
@@ -122,7 +161,7 @@ export default function Jobs({ user }) {
           onClick={() => { setPaymentStep(null); fetchJobs() }}
           className="text-sm text-gray-500 hover:text-gray-700 mb-6 inline-block"
         >
-          Back to Jobs
+          &larr; Back to Jobs
         </button>
         <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
           <h2 className="text-xl font-bold text-gray-900 mb-1">Complete Payment</h2>
@@ -163,21 +202,38 @@ export default function Jobs({ user }) {
   if (user.role === 'builder') {
     const grouped = {
       pending_payment: jobs.filter((j) => j.status === 'pending_payment'),
-      open: jobs.filter((j) => j.status === 'open'),
+      bidding: jobs.filter((j) => isV2Job(j) && j.status === 'open'),
+      open: jobs.filter((j) => !isV2Job(j) && j.status === 'open'),
       in_progress: jobs.filter((j) => j.status === 'in_progress'),
       completed: jobs.filter((j) => j.status === 'completed'),
+    }
+
+    const groupLabels = {
+      pending_payment: 'Pending Payment',
+      bidding: 'Accepting Bids',
+      open: 'Open',
+      in_progress: 'In Progress',
+      completed: 'Completed',
     }
 
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-gray-900">My Test Jobs</h1>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
-          >
-            {showForm ? 'Cancel' : 'New Job'}
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/jobs/create"
+              className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+            >
+              New Structured Job
+            </Link>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+            >
+              {showForm ? 'Cancel' : 'Quick Job'}
+            </button>
+          </div>
         </div>
 
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
@@ -260,7 +316,6 @@ export default function Jobs({ user }) {
                   </div>
                 </div>
 
-                {/* Cost preview */}
                 {form.payout_amount && form.max_testers && (
                   <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
                     <div className="flex justify-between text-gray-600">
@@ -299,7 +354,9 @@ export default function Jobs({ user }) {
             {Object.entries(grouped).map(([status, items]) =>
               items.length > 0 && (
                 <div key={status}>
-                  <h2 className="text-lg font-semibold text-gray-700 mb-3 capitalize">{status.replace('_', ' ')} ({items.length})</h2>
+                  <h2 className="text-lg font-semibold text-gray-700 mb-3">
+                    {groupLabels[status]} ({items.length})
+                  </h2>
                   <div className="space-y-3">
                     {items.map((job) => (
                       <JobCard
@@ -323,7 +380,11 @@ export default function Jobs({ user }) {
   const available = jobs.filter((j) => j.status === 'open' || (j.status === 'in_progress' && !j.assigned_testers?.includes(user.email)))
   const claimed = jobs.filter((j) => j.assigned_testers?.includes(user.email))
 
-  const displayed = tab === 'available' ? available : claimed
+  const tabs = [
+    { key: 'available', label: 'Available', count: available.length },
+    { key: 'bids', label: 'My Bids', count: bids.length },
+    { key: 'claimed', label: 'My Claimed', count: claimed.length },
+  ]
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -332,46 +393,56 @@ export default function Jobs({ user }) {
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
 
       <div className="flex gap-1 mb-6 border-b border-gray-200">
-        <button
-          onClick={() => setTab('available')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            tab === 'available'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Available ({available.length})
-        </button>
-        <button
-          onClick={() => setTab('claimed')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            tab === 'claimed'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          My Claimed ({claimed.length})
-        </button>
+        {tabs.map(({ key, label, count }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === key
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {label} ({count})
+          </button>
+        ))}
       </div>
 
-      {displayed.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-          <p className="text-gray-500 text-lg">
-            {tab === 'available' ? 'No available jobs right now. Check back soon!' : "You haven't claimed any jobs yet."}
-          </p>
-        </div>
+      {tab === 'bids' ? (
+        bids.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
+            <p className="text-gray-500 text-lg">You haven't submitted any bids yet.</p>
+            <p className="text-gray-400 text-sm mt-2">Browse structured jobs and submit bids to get started.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {bids.map((bid) => (
+              <BidCard key={bid.id} bid={bid} />
+            ))}
+          </div>
+        )
       ) : (
-        <div className="space-y-3">
-          {displayed.map((job) => (
-            <JobCard
-              key={job.id}
-              job={job}
-              role="tester"
-              isClaimed={job.assigned_testers?.includes(user.email)}
-              onClaim={() => handleClaim(job.id)}
-            />
-          ))}
-        </div>
+        <>
+          {(tab === 'available' ? available : claimed).length === 0 ? (
+            <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
+              <p className="text-gray-500 text-lg">
+                {tab === 'available' ? 'No available jobs right now. Check back soon!' : "You haven't claimed any jobs yet."}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(tab === 'available' ? available : claimed).map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  role="tester"
+                  isClaimed={job.assigned_testers?.includes(user.email)}
+                  onClaim={() => handleClaim(job.id)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -386,6 +457,8 @@ const statusColors = {
 
 function JobCard({ job, role, isClaimed, onClaim, onCompletePayment }) {
   const isPending = job.status === 'pending_payment'
+  const v2 = isV2Job(job)
+  const v2Info = v2 ? getV2Info(job) : null
 
   const card = (
     <div className={`bg-white border border-gray-200 rounded-lg p-5 ${isPending ? '' : 'hover:shadow-md'} transition-shadow`}>
@@ -394,18 +467,47 @@ function JobCard({ job, role, isClaimed, onClaim, onCompletePayment }) {
           <div className="flex items-center gap-3 mb-1">
             <h3 className="text-lg font-semibold text-gray-900 truncate">{job.title}</h3>
             <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusColors[job.status] || 'bg-gray-100 text-gray-600'}`}>
-              {job.status.replace('_', ' ')}
+              {v2 && job.status === 'open' ? 'accepting bids' : job.status.replace('_', ' ')}
             </span>
+            {v2 && (
+              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">structured</span>
+            )}
           </div>
           {job.project_name && (
             <p className="text-sm text-gray-500 mb-2">{job.project_name}</p>
           )}
           <p className="text-gray-600 text-sm line-clamp-1">{job.description}</p>
+
+          {v2Info && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {v2Info.serviceTypes.map((st) => (
+                <span key={st} className={`text-xs font-medium px-2 py-0.5 rounded-full ${SERVICE_TYPE_COLORS[st] || 'bg-gray-100 text-gray-600'}`}>
+                  {st}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4 ml-4 shrink-0">
           <div className="text-right">
-            <p className="text-lg font-bold text-gray-900">${job.payout_amount}</p>
-            <p className="text-xs text-gray-500">{job.estimated_time_minutes} min</p>
+            {v2Info ? (
+              <>
+                <p className="text-lg font-bold text-gray-900">
+                  {v2Info.priceMin === v2Info.priceMax
+                    ? `$${v2Info.priceMin.toFixed(0)}`
+                    : `$${v2Info.priceMin.toFixed(0)}-$${v2Info.priceMax.toFixed(0)}`}
+                  <span className="text-xs font-normal text-gray-400">/item</span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  {v2Info.roleCount} role{v2Info.roleCount !== 1 ? 's' : ''}, {v2Info.itemCount} item{v2Info.itemCount !== 1 ? 's' : ''}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-bold text-gray-900">${job.payout_amount}</p>
+                <p className="text-xs text-gray-500">{job.estimated_time_minutes} min</p>
+              </>
+            )}
           </div>
           {role === 'builder' && isPending && (
             <button
@@ -415,7 +517,7 @@ function JobCard({ job, role, isClaimed, onClaim, onCompletePayment }) {
               Complete Payment
             </button>
           )}
-          {role === 'tester' && !isClaimed && (job.status === 'open' || job.status === 'in_progress') && (
+          {role === 'tester' && !isClaimed && !v2 && (job.status === 'open' || job.status === 'in_progress') && (
             <button
               onClick={(e) => { e.preventDefault(); onClaim() }}
               className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium"
@@ -423,17 +525,35 @@ function JobCard({ job, role, isClaimed, onClaim, onCompletePayment }) {
               Claim
             </button>
           )}
+          {role === 'tester' && !isClaimed && v2 && job.status === 'open' && (
+            <Link
+              to={`/jobs/${job.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 font-medium"
+            >
+              View & Bid
+            </Link>
+          )}
           {role === 'tester' && isClaimed && (
             <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary-50 text-primary-700">Claimed</span>
           )}
         </div>
       </div>
       <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
-        <span>{job.assigned_testers?.length || 0} / {job.max_testers} testers</span>
-        <span>{new Date(job.created_at).toLocaleDateString()}</span>
-        {role === 'builder' && job.total_charge > 0 && (
-          <span>Total: ${job.total_charge.toFixed(2)}</span>
+        {v2Info ? (
+          <>
+            <span>Total: ${v2Info.proposedTotal.toFixed(2)} proposed</span>
+            <span className="capitalize">{job.assignment_type?.replace('_', ' ')}</span>
+          </>
+        ) : (
+          <>
+            <span>{job.assigned_testers?.length || 0} / {job.max_testers} testers</span>
+            {role === 'builder' && job.total_charge > 0 && (
+              <span>Total: ${job.total_charge.toFixed(2)}</span>
+            )}
+          </>
         )}
+        <span>{new Date(job.created_at).toLocaleDateString()}</span>
       </div>
     </div>
   )
@@ -443,6 +563,46 @@ function JobCard({ job, role, isClaimed, onClaim, onCompletePayment }) {
   return (
     <Link to={`/jobs/${job.id}`} className="block">
       {card}
+    </Link>
+  )
+}
+
+function BidCard({ bid }) {
+  return (
+    <Link to={`/jobs/${bid.job_id}`} className="block">
+      <div className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-1">
+              <h3 className="text-lg font-semibold text-gray-900 truncate">{bid.job_title || 'Test Job'}</h3>
+              <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${BID_STATUS_COLORS[bid.status] || 'bg-gray-100 text-gray-600'}`}>
+                {bid.status}
+              </span>
+              {bid.is_counter && (
+                <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700">counter-offer</span>
+              )}
+            </div>
+            {bid.message && (
+              <p className="text-gray-500 text-sm line-clamp-1">{bid.message}</p>
+            )}
+          </div>
+          <div className="text-right ml-4 shrink-0">
+            <p className="text-lg font-bold text-gray-900">${bid.bid_price?.toFixed(2)}</p>
+            {bid.is_counter && bid.proposed_price != null && (
+              <p className="text-xs text-gray-400">
+                <span className="line-through">${bid.proposed_price?.toFixed(2)}</span> proposed
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
+          <span className="capitalize">{bid.scope_type?.replace('_', ' ')}</span>
+          {bid.payment_status === 'paid' && (
+            <span className="text-green-600 font-medium">Paid</span>
+          )}
+          <span>{new Date(bid.created_at).toLocaleDateString()}</span>
+        </div>
+      </div>
     </Link>
   )
 }
@@ -471,7 +631,6 @@ function PaymentForm({ job, onSuccess }) {
       return
     }
 
-    // Payment succeeded — confirm with backend
     try {
       const res = await axios.post(`/api/jobs/${job.id}/confirm-payment`)
       onSuccess(res.data)

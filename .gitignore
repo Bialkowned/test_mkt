@@ -92,6 +92,9 @@ dist
 # Docker
 .dockerignore
 
+# Uploads
+uploads/
+
 # Misc
 *.tmp
 *.temp

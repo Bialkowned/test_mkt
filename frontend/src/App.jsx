@@ -9,8 +9,12 @@ import Dashboard from './pages/Dashboard'
 import Projects from './pages/Projects'
 import Jobs from './pages/Jobs'
 import JobDetail from './pages/JobDetail'
-import VerifyEmail from './pages/VerifyEmail'
+import Onboarding from './pages/Onboarding'
+import GitHubCallback from './pages/GitHubCallback'
 import Settings from './pages/Settings'
+import Pricing from './pages/Pricing'
+import TesterProfile from './pages/TesterProfile'
+import CreateJob from './pages/CreateJob'
 
 function ChatBubble() {
   const [open, setOpen] = useState(false)
@@ -82,8 +86,6 @@ function ChatBubble() {
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [resending, setResending] = useState(false)
-  const [resendMsg, setResendMsg] = useState('')
 
   useEffect(() => {
     setOnAuthFailure(() => setUser(null))
@@ -101,20 +103,6 @@ function App() {
     }
     setAccessToken(null)
     setUser(null)
-  }
-
-  const handleResendVerification = async () => {
-    setResending(true)
-    setResendMsg('')
-    try {
-      await axios.post('/api/auth/resend-verification')
-      setResendMsg('Verification email sent!')
-    } catch (err) {
-      setResendMsg(err.response?.data?.detail || 'Failed to send')
-    } finally {
-      setResending(false)
-      setTimeout(() => setResendMsg(''), 5000)
-    }
   }
 
   if (loading) {
@@ -135,6 +123,9 @@ function App() {
               <div className="flex items-center">
                 <Link to="/" className="text-2xl font-bold text-primary-600">
                   PeerTest Hub
+                </Link>
+                <Link to="/pricing" className="ml-6 text-gray-700 hover:text-gray-900 px-3 py-2">
+                  Pricing
                 </Link>
                 {user && (
                   <div className="ml-10 flex space-x-4">
@@ -195,39 +186,29 @@ function App() {
           </div>
         </nav>
 
-        {/* Email verification banner */}
-        {user && !user.email_verified && (
-          <div className="bg-amber-50 border-b border-amber-200">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-              <p className="text-sm text-amber-800">
-                Please verify your email address. Check your inbox for a verification link.
-              </p>
-              <div className="flex items-center gap-3">
-                {resendMsg && <span className="text-xs text-amber-700">{resendMsg}</span>}
-                <button
-                  onClick={handleResendVerification}
-                  disabled={resending}
-                  className="text-sm font-medium text-amber-700 hover:text-amber-900 underline disabled:opacity-50"
-                >
-                  {resending ? 'Sending...' : 'Resend email'}
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* Routes — onboarding gate blocks all app routes until complete */}
+        {user && !user.onboarding_completed ? (
+          <Routes>
+            <Route path="/onboarding/github/callback" element={<GitHubCallback setUser={setUser} />} />
+            <Route path="/pricing" element={<Pricing user={user} />} />
+            <Route path="/testers/:username" element={<TesterProfile />} />
+            <Route path="*" element={<Onboarding user={user} setUser={setUser} />} />
+          </Routes>
+        ) : (
+          <Routes>
+            <Route path="/" element={<Home user={user} />} />
+            <Route path="/pricing" element={<Pricing user={user} />} />
+            <Route path="/testers/:username" element={<TesterProfile />} />
+            <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login setUser={setUser} />} />
+            <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register setUser={setUser} />} />
+            <Route path="/dashboard" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />
+            <Route path="/projects" element={user ? <Projects user={user} /> : <Navigate to="/login" />} />
+            <Route path="/jobs" element={user ? <Jobs user={user} /> : <Navigate to="/login" />} />
+            <Route path="/jobs/create" element={user ? <CreateJob user={user} /> : <Navigate to="/login" />} />
+            <Route path="/jobs/:jobId" element={user ? <JobDetail user={user} /> : <Navigate to="/login" />} />
+            <Route path="/settings" element={user ? <Settings user={user} /> : <Navigate to="/login" />} />
+          </Routes>
         )}
-
-        {/* Routes */}
-        <Routes>
-          <Route path="/" element={<Home user={user} />} />
-          <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login setUser={setUser} />} />
-          <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register setUser={setUser} />} />
-          <Route path="/dashboard" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />
-          <Route path="/projects" element={user ? <Projects user={user} /> : <Navigate to="/login" />} />
-          <Route path="/jobs" element={user ? <Jobs user={user} /> : <Navigate to="/login" />} />
-          <Route path="/jobs/:jobId" element={user ? <JobDetail user={user} /> : <Navigate to="/login" />} />
-          <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route path="/settings" element={user ? <Settings user={user} /> : <Navigate to="/login" />} />
-        </Routes>
         <ChatBubble />
       </div>
     </Router>

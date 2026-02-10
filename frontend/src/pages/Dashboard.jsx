@@ -58,10 +58,11 @@ export default function Dashboard({ user }) {
 
       {user.role === 'builder' ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
             <StatCard label="Projects" value={stats.total_projects} color="blue" />
             <StatCard label="Active Jobs" value={stats.active_jobs} color="amber" />
             <StatCard label="Pending Reviews" value={stats.pending_reviews} color="rose" />
+            <StatCard label="Pending Bids" value={stats.pending_bids} color="purple" />
             <StatCard label="Completed" value={stats.completed_jobs} color="emerald" />
             <StatCard label="Total Spent" value={`$${(stats.total_spent || 0).toFixed(2)}`} color="green" />
           </div>
@@ -74,17 +75,24 @@ export default function Dashboard({ user }) {
               Create Project
             </Link>
             <Link
+              to="/jobs/create"
+              className="inline-flex items-center px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+            >
+              Create Structured Job
+            </Link>
+            <Link
               to="/jobs"
               className="inline-flex items-center px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
             >
-              Create Job
+              View Jobs
             </Link>
           </div>
         </>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
             <StatCard label="Claimed Jobs" value={stats.claimed_jobs} color="blue" />
+            <StatCard label="Active Bids" value={stats.active_bids} color="purple" />
             <StatCard label="Completed" value={stats.completed} color="emerald" />
             <StatCard label="Pending Review" value={stats.pending_review} color="amber" />
             <StatCard label="Earnings" value={`$${(stats.earnings || 0).toFixed(2)}`} color="green" />
@@ -124,6 +132,7 @@ const colorMap = {
   rose: 'bg-rose-50 border-rose-200 text-rose-700',
   emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700',
   green: 'bg-green-50 border-green-200 text-green-700',
+  purple: 'bg-purple-50 border-purple-200 text-purple-700',
 }
 
 function StatCard({ label, value, color }) {
