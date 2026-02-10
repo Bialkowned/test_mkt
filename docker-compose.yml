@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # MongoDB database
+  mongodb:
+    image: mongo:6
+    container_name: peertesthub-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=peertesthub
+
+  # Redis for caching and queues
+  redis:
+    image: redis:7-alpine
+    container_name: peertesthub-redis
+    ports:
+      - "6379:6379"
+
+  # Backend API (FastAPI)
+  backend:
+    build: ./backend
+    container_name: peertesthub-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/peertesthub
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=your-secret-key-change-in-production
+    depends_on:
+      - mongodb
+      - redis
+    command: python main.py
+
+  # Frontend (React + Vite)
+  frontend:
+    build: ./frontend
+    container_name: peertesthub-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    command: npm run dev -- --host
+
+volumes:
+  mongo_data:
