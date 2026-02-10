@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import axios from 'axios'
+import { setAccessToken } from '../api'
 
 export default function Register({ setUser }) {
   const navigate = useNavigate()
@@ -19,8 +20,7 @@ export default function Register({ setUser }) {
     }
     try {
       const response = await axios.post('/api/auth/register', formData)
-      localStorage.setItem('token', response.data.access_token)
-      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`
+      setAccessToken(response.data.access_token)
       setUser(response.data.user)
       navigate('/dashboard')
     } catch (err) {

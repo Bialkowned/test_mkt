@@ -76,6 +76,7 @@ export default function JobDetail({ user }) {
   }
 
   const statusColors = {
+    pending_payment: 'bg-orange-100 text-orange-700',
     open: 'bg-green-100 text-green-700',
     in_progress: 'bg-amber-100 text-amber-700',
     completed: 'bg-blue-100 text-blue-700',
@@ -107,6 +108,28 @@ export default function JobDetail({ user }) {
           <span>{job.estimated_time_minutes} min estimated</span>
           <span>{job.assigned_testers?.length || 0} / {job.max_testers} testers</span>
         </div>
+
+        {/* Charge breakdown for builder */}
+        {user.role === 'builder' && job.total_charge > 0 && (
+          <div className="mt-5 bg-gray-50 rounded-lg p-4 text-sm space-y-1.5">
+            <div className="flex justify-between text-gray-600">
+              <span>Payout per tester</span>
+              <span>${job.payout_amount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Testers</span>
+              <span>{job.max_testers}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Platform fee (15%)</span>
+              <span>${job.platform_fee.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between font-semibold text-gray-900 pt-1.5 border-t border-gray-200">
+              <span>Total charged</span>
+              <span>${job.total_charge.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
 
         {canClaim && (
           <button

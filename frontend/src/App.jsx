@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { setAccessToken, setOnAuthFailure, tryRefresh } from './api'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -8,8 +9,8 @@ import Dashboard from './pages/Dashboard'
 import Projects from './pages/Projects'
 import Jobs from './pages/Jobs'
 import JobDetail from './pages/JobDetail'
-
-// API calls go through Vite's proxy (see vite.config.js)
+import VerifyEmail from './pages/VerifyEmail'
+import Settings from './pages/Settings'
 
 function ChatBubble() {
   const [open, setOpen] = useState(false)
@@ -81,35 +82,39 @@ function ChatBubble() {
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [resending, setResending] = useState(false)
+  const [resendMsg, setResendMsg] = useState('')
 
   useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token')
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      fetchUser()
-    } else {
+    setOnAuthFailure(() => setUser(null))
+    tryRefresh().then((data) => {
+      if (data) setUser(data.user)
       setLoading(false)
-    }
+    })
   }, [])
 
-  const fetchUser = async () => {
+  const handleLogout = async () => {
     try {
-      const response = await axios.get('/api/auth/me')
-      setUser(response.data)
-    } catch (error) {
-      console.error('Failed to fetch user:', error)
-      localStorage.removeItem('token')
-      delete axios.defaults.headers.common['Authorization']
-    } finally {
-      setLoading(false)
+      await axios.post('/api/auth/logout')
+    } catch {
+      // Logout endpoint may fail if token already expired — that's fine
     }
+    setAccessToken(null)
+    setUser(null)
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    delete axios.defaults.headers.common['Authorization']
-    setUser(null)
+  const handleResendVerification = async () => {
+    setResending(true)
+    setResendMsg('')
+    try {
+      await axios.post('/api/auth/resend-verification')
+      setResendMsg('Verification email sent!')
+    } catch (err) {
+      setResendMsg(err.response?.data?.detail || 'Failed to send')
+    } finally {
+      setResending(false)
+      setTimeout(() => setResendMsg(''), 5000)
+    }
   }
 
   if (loading) {
@@ -147,9 +152,14 @@ function App() {
                       </>
                     )}
                     {user.role === 'tester' && (
-                      <Link to="/jobs" className="text-gray-700 hover:text-gray-900 px-3 py-2">
-                        Available Jobs
-                      </Link>
+                      <>
+                        <Link to="/jobs" className="text-gray-700 hover:text-gray-900 px-3 py-2">
+                          Available Jobs
+                        </Link>
+                        <Link to="/settings" className="text-gray-700 hover:text-gray-900 px-3 py-2">
+                          Settings
+                        </Link>
+                      </>
                     )}
                   </div>
                 )}
@@ -185,6 +195,27 @@ function App() {
           </div>
         </nav>
 
+        {/* Email verification banner */}
+        {user && !user.email_verified && (
+          <div className="bg-amber-50 border-b border-amber-200">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+              <p className="text-sm text-amber-800">
+                Please verify your email address. Check your inbox for a verification link.
+              </p>
+              <div className="flex items-center gap-3">
+                {resendMsg && <span className="text-xs text-amber-700">{resendMsg}</span>}
+                <button
+                  onClick={handleResendVerification}
+                  disabled={resending}
+                  className="text-sm font-medium text-amber-700 hover:text-amber-900 underline disabled:opacity-50"
+                >
+                  {resending ? 'Sending...' : 'Resend email'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Routes */}
         <Routes>
           <Route path="/" element={<Home user={user} />} />
@@ -194,6 +225,8 @@ function App() {
           <Route path="/projects" element={user ? <Projects user={user} /> : <Navigate to="/login" />} />
           <Route path="/jobs" element={user ? <Jobs user={user} /> : <Navigate to="/login" />} />
           <Route path="/jobs/:jobId" element={user ? <JobDetail user={user} /> : <Navigate to="/login" />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/settings" element={user ? <Settings user={user} /> : <Navigate to="/login" />} />
         </Routes>
         <ChatBubble />
       </div>

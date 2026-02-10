@@ -58,11 +58,12 @@ export default function Dashboard({ user }) {
 
       {user.role === 'builder' ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
             <StatCard label="Projects" value={stats.total_projects} color="blue" />
             <StatCard label="Active Jobs" value={stats.active_jobs} color="amber" />
             <StatCard label="Pending Reviews" value={stats.pending_reviews} color="rose" />
             <StatCard label="Completed" value={stats.completed_jobs} color="emerald" />
+            <StatCard label="Total Spent" value={`$${(stats.total_spent || 0).toFixed(2)}`} color="green" />
           </div>
 
           <div className="flex gap-4">
@@ -88,6 +89,22 @@ export default function Dashboard({ user }) {
             <StatCard label="Pending Review" value={stats.pending_review} color="amber" />
             <StatCard label="Earnings" value={`$${(stats.earnings || 0).toFixed(2)}`} color="green" />
           </div>
+
+          {/* Connect CTA for testers who haven't onboarded */}
+          {!data?.stripe_connect_onboarded && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-5 mb-8 flex items-center justify-between">
+              <div>
+                <p className="font-medium text-amber-900">Set up payouts to receive earnings</p>
+                <p className="text-sm text-amber-700 mt-0.5">Connect your Stripe account so you get paid when builders approve your submissions.</p>
+              </div>
+              <Link
+                to="/settings"
+                className="px-5 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium shrink-0"
+              >
+                Set Up Payouts
+              </Link>
+            </div>
+          )}
 
           <Link
             to="/jobs"

@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
 export default function Jobs({ user }) {
   const [jobs, setJobs] = useState([])
@@ -18,6 +22,9 @@ export default function Jobs({ user }) {
     max_testers: 3,
     estimated_time_minutes: 30,
   })
+
+  // Payment step state
+  const [paymentStep, setPaymentStep] = useState(null) // { job, clientSecret }
 
   useEffect(() => {
     fetchJobs()
@@ -52,13 +59,35 @@ export default function Jobs({ user }) {
     try {
       const payload = { ...form, payout_amount: parseFloat(form.payout_amount) }
       const res = await axios.post('/api/jobs', payload)
-      setJobs([res.data, ...jobs])
-      setForm({ project_id: projects[0]?.id || '', title: '', description: '', payout_amount: '', max_testers: 3, estimated_time_minutes: 30 })
+      // Backend returns job + client_secret — transition to payment step
+      setPaymentStep({ job: res.data, clientSecret: res.data.client_secret })
       setShowForm(false)
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create job')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handlePaymentSuccess = (job) => {
+    // Job is now open — add to list and reset state
+    setPaymentStep(null)
+    setJobs([{ ...job, status: 'open' }, ...jobs.filter((j) => j.id !== job.id)])
+    setForm({ project_id: projects[0]?.id || '', title: '', description: '', payout_amount: '', max_testers: 3, estimated_time_minutes: 30 })
+  }
+
+  const handleCompletePayment = async (job) => {
+    setError('')
+    try {
+      const res = await axios.post(`/api/jobs/${job.id}/payment-intent`)
+      if (res.data.already_paid) {
+        // Already paid — just refresh
+        fetchJobs()
+        return
+      }
+      setPaymentStep({ job, clientSecret: res.data.client_secret })
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to load payment')
     }
   }
 
@@ -84,9 +113,56 @@ export default function Jobs({ user }) {
     )
   }
 
+  // Payment step overlay
+  if (paymentStep) {
+    const { job, clientSecret } = paymentStep
+    return (
+      <div className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <button
+          onClick={() => { setPaymentStep(null); fetchJobs() }}
+          className="text-sm text-gray-500 hover:text-gray-700 mb-6 inline-block"
+        >
+          Back to Jobs
+        </button>
+        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Complete Payment</h2>
+          <p className="text-gray-500 text-sm mb-5">Pay to publish your test job: <strong>{job.title}</strong></p>
+
+          <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Payout per tester</span>
+              <span className="text-gray-900">${job.payout_amount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Testers</span>
+              <span className="text-gray-900">{job.max_testers}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Subtotal</span>
+              <span className="text-gray-900">${(job.payout_amount * job.max_testers).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Platform fee (15%)</span>
+              <span className="text-gray-900">${job.platform_fee.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold">
+              <span className="text-gray-900">Total</span>
+              <span className="text-gray-900">${job.total_charge.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
+            <PaymentForm job={job} onSuccess={handlePaymentSuccess} />
+          </Elements>
+        </div>
+      </div>
+    )
+  }
+
   // Builder view
   if (user.role === 'builder') {
     const grouped = {
+      pending_payment: jobs.filter((j) => j.status === 'pending_payment'),
       open: jobs.filter((j) => j.status === 'open'),
       in_progress: jobs.filter((j) => j.status === 'in_progress'),
       completed: jobs.filter((j) => j.status === 'completed'),
@@ -183,12 +259,31 @@ export default function Jobs({ user }) {
                     />
                   </div>
                 </div>
+
+                {/* Cost preview */}
+                {form.payout_amount && form.max_testers && (
+                  <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Payout: ${parseFloat(form.payout_amount || 0).toFixed(2)} x {form.max_testers} testers</span>
+                      <span>${(parseFloat(form.payout_amount || 0) * form.max_testers).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>Platform fee (15%)</span>
+                      <span>${(parseFloat(form.payout_amount || 0) * form.max_testers * 0.15).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-gray-900 pt-1 border-t border-gray-200">
+                      <span>Total charge</span>
+                      <span>${(parseFloat(form.payout_amount || 0) * form.max_testers * 1.15).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={submitting}
                   className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
                 >
-                  {submitting ? 'Creating...' : 'Create Job'}
+                  {submitting ? 'Creating...' : 'Create & Pay'}
                 </button>
               </>
             )}
@@ -207,7 +302,12 @@ export default function Jobs({ user }) {
                   <h2 className="text-lg font-semibold text-gray-700 mb-3 capitalize">{status.replace('_', ' ')} ({items.length})</h2>
                   <div className="space-y-3">
                     {items.map((job) => (
-                      <JobCard key={job.id} job={job} role="builder" />
+                      <JobCard
+                        key={job.id}
+                        job={job}
+                        role="builder"
+                        onCompletePayment={() => handleCompletePayment(job)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -278,17 +378,17 @@ export default function Jobs({ user }) {
 }
 
 const statusColors = {
+  pending_payment: 'bg-orange-100 text-orange-700',
   open: 'bg-green-100 text-green-700',
   in_progress: 'bg-amber-100 text-amber-700',
   completed: 'bg-blue-100 text-blue-700',
 }
 
-function JobCard({ job, role, isClaimed, onClaim }) {
-  return (
-    <Link
-      to={`/jobs/${job.id}`}
-      className="block bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow"
-    >
+function JobCard({ job, role, isClaimed, onClaim, onCompletePayment }) {
+  const isPending = job.status === 'pending_payment'
+
+  const card = (
+    <div className={`bg-white border border-gray-200 rounded-lg p-5 ${isPending ? '' : 'hover:shadow-md'} transition-shadow`}>
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-1">
@@ -307,6 +407,14 @@ function JobCard({ job, role, isClaimed, onClaim }) {
             <p className="text-lg font-bold text-gray-900">${job.payout_amount}</p>
             <p className="text-xs text-gray-500">{job.estimated_time_minutes} min</p>
           </div>
+          {role === 'builder' && isPending && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onCompletePayment() }}
+              className="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 font-medium"
+            >
+              Complete Payment
+            </button>
+          )}
           {role === 'tester' && !isClaimed && (job.status === 'open' || job.status === 'in_progress') && (
             <button
               onClick={(e) => { e.preventDefault(); onClaim() }}
@@ -323,7 +431,70 @@ function JobCard({ job, role, isClaimed, onClaim }) {
       <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
         <span>{job.assigned_testers?.length || 0} / {job.max_testers} testers</span>
         <span>{new Date(job.created_at).toLocaleDateString()}</span>
+        {role === 'builder' && job.total_charge > 0 && (
+          <span>Total: ${job.total_charge.toFixed(2)}</span>
+        )}
       </div>
+    </div>
+  )
+
+  if (isPending) return card
+
+  return (
+    <Link to={`/jobs/${job.id}`} className="block">
+      {card}
     </Link>
+  )
+}
+
+function PaymentForm({ job, onSuccess }) {
+  const stripe = useStripe()
+  const elements = useElements()
+  const [paying, setPaying] = useState(false)
+  const [payError, setPayError] = useState('')
+
+  const handlePay = async (e) => {
+    e.preventDefault()
+    if (!stripe || !elements) return
+
+    setPaying(true)
+    setPayError('')
+
+    const { error } = await stripe.confirmPayment({
+      elements,
+      redirect: 'if_required',
+    })
+
+    if (error) {
+      setPayError(error.message)
+      setPaying(false)
+      return
+    }
+
+    // Payment succeeded — confirm with backend
+    try {
+      const res = await axios.post(`/api/jobs/${job.id}/confirm-payment`)
+      onSuccess(res.data)
+    } catch (err) {
+      setPayError(err.response?.data?.detail || 'Payment confirmed but failed to update job. Refresh the page.')
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handlePay}>
+      <PaymentElement />
+      {payError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded mt-4">{payError}</div>
+      )}
+      <button
+        type="submit"
+        disabled={!stripe || paying}
+        className="w-full mt-5 px-5 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-semibold disabled:opacity-50"
+      >
+        {paying ? 'Processing...' : `Pay $${job.total_charge.toFixed(2)}`}
+      </button>
+    </form>
   )
 }

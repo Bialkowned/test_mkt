@@ -15,7 +15,7 @@ export default function Home({ user }) {
       <section className="bg-gradient-to-br from-primary-50 via-white to-blue-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-14">
           <div className="inline-block px-3 py-1 rounded-full bg-primary-100 text-primary-700 text-xs font-semibold tracking-wide uppercase mb-5">
-            Beta — free for builders & testers
+            Real payments — testers get the full listed payout
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 tracking-tight leading-tight">
             Real feedback from real users,<br />before your users find the problems.
@@ -221,15 +221,15 @@ export default function Home({ user }) {
               <div className="space-y-6">
                 <FaqItem
                   q="How much does it cost for builders?"
-                  a="You set your own payout per tester, per job — anywhere from $1 to $1,000. That's the only cost. No platform fees during beta."
+                  a="You set your own payout per tester ($1–$1,000). We add a 15% platform fee on top — so if you set a $50 payout for 2 testers, you pay $115 total ($100 in payouts + $15 fee). Testers receive the full listed amount."
                 />
                 <FaqItem
                   q="How much can testers earn?"
-                  a="Depends on the job. A quick 10-minute signup test might pay $5–$10, while a thorough 60-minute walkthrough could pay $30–$50. You see the payout before you claim."
+                  a="Depends on the job. A quick 10-minute signup test might pay $5–$10, while a thorough 60-minute walkthrough could pay $30–$50. You see the exact payout before you claim. You get the full listed amount — no deductions."
                 />
                 <FaqItem
-                  q="Is there an escrow system?"
-                  a="Not yet — we're in beta. Payment approval is honor-system based for now. Escrow and automated payouts are on the roadmap."
+                  q="How do payments work?"
+                  a="Builders pay via Stripe when creating a job. Funds are held until you approve submissions. Testers receive payouts through Stripe Connect — set it up once in Settings and get paid automatically on approval."
                 />
               </div>
             </div>
@@ -285,7 +285,7 @@ export default function Home({ user }) {
         <section className="border-t border-gray-200 bg-gray-900">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14 text-center">
             <h2 className="text-2xl font-bold text-white mb-3">Ready to get real feedback?</h2>
-            <p className="text-gray-400 mb-6">Create a free account as a builder or tester. No credit card required.</p>
+            <p className="text-gray-400 mb-6">Create a free account as a builder or tester. Builders only pay when creating jobs.</p>
             <Link
               to="/register"
               className="inline-block px-6 py-3 bg-primary-500 text-white rounded-lg font-medium hover:bg-primary-400 shadow-sm shadow-primary-900"
