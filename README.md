@@ -4,6 +4,22 @@
 
 ---
 
+## ⚠️ IMPORTANT: Start Here!
+
+### 📖 New to This Project?
+
+👉 **READ FIRST:** [GETTING_STARTED.md](./GETTING_STARTED.md) - Complete guide on what exists and how to proceed  
+👉 **QUICK REF:** [QUICK_START.md](./QUICK_START.md) - One-page summary
+
+### What You Have Right Now
+
+✅ **Documentation & Specifications** (13 files, 388KB, 13,619 lines)  
+❌ **NO ACTUAL CODE** - The platform has not been built yet
+
+**This repository contains the blueprint, not the building.**
+
+---
+
 ## 🎯 One-Line Summary
 
 A peer-testing marketplace where builders connect GitHub repos or hosted URLs, define user journeys to test, and get structured feedback (with annotated screenshots) from everyday testers—with fair escrow protection for both parties.
