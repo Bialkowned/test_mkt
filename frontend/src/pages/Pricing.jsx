@@ -57,12 +57,12 @@ const SERVICE_TYPES = [
 export default function Pricing({ user }) {
   // Configurator state
   const [roles, setRoles] = useState([
-    { id: 1, name: 'Default User', items: [{ id: 1, title: '', service: 'test', price: 25, pages: [] }] },
+    { id: 1, name: 'Default User', items: [{ id: 1, title: '', description: '', service: 'test', price: 25, hours: 0.5, pages: [] }] },
   ])
 
   const addRole = () => {
     const id = Date.now()
-    setRoles([...roles, { id, name: '', items: [{ id: id + 1, title: '', service: 'test', price: 25, pages: [] }] }])
+    setRoles([...roles, { id, name: '', items: [{ id: id + 1, title: '', description: '', service: 'test', price: 25, hours: 0.5, pages: [] }] }])
   }
 
   const removeRole = (roleId) => {
@@ -76,7 +76,7 @@ export default function Pricing({ user }) {
 
   const addItem = (roleId) => {
     setRoles(roles.map((r) => r.id === roleId ? {
-      ...r, items: [...r.items, { id: Date.now(), title: '', service: 'test', price: 25, pages: [] }]
+      ...r, items: [...r.items, { id: Date.now(), title: '', description: '', service: 'test', price: 25, hours: 0.5, pages: [] }]
     } : r))
   }
 
@@ -119,6 +119,7 @@ export default function Pricing({ user }) {
 
   const totalPages = roles.reduce((s, r) => s + r.items.reduce((si, i) => si + (i.pages?.length || 0), 0), 0)
   const totalItems = roles.reduce((s, r) => s + r.items.length, 0)
+  const totalHours = roles.reduce((s, r) => s + r.items.reduce((si, i) => si + (parseFloat(i.hours) || 0), 0), 0)
   const proposedTotal = roles.reduce((s, r) => s + r.items.reduce((si, i) => si + (parseFloat(i.price) || 0), 0), 0)
   const platformFee = Math.round(proposedTotal * PLATFORM_FEE_RATE * 100) / 100
   const grandTotal = Math.round((proposedTotal + platformFee) * 100) / 100
@@ -205,6 +206,14 @@ export default function Pricing({ user }) {
                           )}
                         </div>
 
+                        <textarea
+                          rows={2}
+                          placeholder="Expectations — what should the tester do, look for, or deliver?"
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none mb-3"
+                          value={item.description || ''}
+                          onChange={(e) => updateItem(role.id, item.id, 'description', e.target.value)}
+                        />
+
                         <div className="flex items-center gap-3 mb-3">
                           <select
                             className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-primary-500"
@@ -213,15 +222,28 @@ export default function Pricing({ user }) {
                           >
                             {SERVICE_TYPES.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
                           </select>
-                          <div className="flex items-center gap-1 ml-auto">
-                            <span className="text-xs text-gray-400">$</span>
-                            <input
-                              type="number"
-                              min={1}
-                              className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-primary-500"
-                              value={item.price}
-                              onChange={(e) => updateItem(role.id, item.id, 'price', parseFloat(e.target.value) || 0)}
-                            />
+                          <div className="flex items-center gap-2 ml-auto">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={0.5}
+                                step={0.5}
+                                className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-primary-500"
+                                value={item.hours}
+                                onChange={(e) => updateItem(role.id, item.id, 'hours', parseFloat(e.target.value) || 0.5)}
+                              />
+                              <span className="text-xs text-gray-400">hrs</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-400">$</span>
+                              <input
+                                type="number"
+                                min={1}
+                                className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-primary-500"
+                                value={item.price}
+                                onChange={(e) => updateItem(role.id, item.id, 'price', parseFloat(e.target.value) || 0)}
+                              />
+                            </div>
                           </div>
                         </div>
 
@@ -278,6 +300,7 @@ export default function Pricing({ user }) {
                 <div className="space-y-2 text-sm">
                   {roles.map((r) => {
                     const roleTotal = r.items.reduce((s, i) => s + (parseFloat(i.price) || 0), 0)
+                    const roleHours = r.items.reduce((s, i) => s + (parseFloat(i.hours) || 0), 0)
                     const rolePages = r.items.reduce((s, i) => s + (i.pages?.length || 0), 0)
                     return (
                       <div key={r.id}>
@@ -285,6 +308,7 @@ export default function Pricing({ user }) {
                           <span className="truncate">{r.name || 'Unnamed'} ({r.items.length} item{r.items.length !== 1 ? 's' : ''}{rolePages > 0 ? `, ${rolePages} pg` : ''})</span>
                           <span>${roleTotal.toFixed(2)}</span>
                         </div>
+                        <div className="text-xs text-gray-400 text-right">{roleHours} hr{roleHours !== 1 ? 's' : ''}</div>
                       </div>
                     )
                   })}
@@ -297,6 +321,10 @@ export default function Pricing({ user }) {
                   <div className="flex justify-between text-gray-600 pt-2 border-t border-gray-100">
                     <span>Subtotal ({totalItems} items)</span>
                     <span>${proposedTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-500 text-xs">
+                    <span>Est. total time</span>
+                    <span>{totalHours} hr{totalHours !== 1 ? 's' : ''}</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
                     <span>Platform fee (15%)</span>

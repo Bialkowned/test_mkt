@@ -54,7 +54,7 @@ export default function CreateJob({ user }) {
       name: '',
       description: '',
       credentials: { email: '', password: '', notes: '' },
-      items: [{ id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_minutes: 15, pages: [] }],
+      items: [{ id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_hours: 0.5, pages: [] }],
     },
   ])
 
@@ -66,6 +66,7 @@ export default function CreateJob({ user }) {
   }, [])
 
   const totalItems = roles.reduce((sum, r) => sum + r.items.length, 0)
+  const totalHours = roles.reduce((sum, r) => sum + r.items.reduce((s, item) => s + (parseFloat(item.estimated_hours) || 0), 0), 0)
   const proposedTotal = roles.reduce((sum, r) => sum + r.items.reduce((s, item) => s + (parseFloat(item.proposed_price) || 0), 0), 0)
   const platformFee = Math.round(proposedTotal * PLATFORM_FEE_RATE * 100) / 100
   const maxTotal = Math.round((proposedTotal + platformFee) * 100) / 100
@@ -76,7 +77,7 @@ export default function CreateJob({ user }) {
       name: '',
       description: '',
       credentials: { email: '', password: '', notes: '' },
-      items: [{ id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_minutes: 15, pages: [] }],
+      items: [{ id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_hours: 0.5, pages: [] }],
     }])
   }
 
@@ -92,7 +93,7 @@ export default function CreateJob({ user }) {
   const addItem = (roleId) => {
     setRoles(roles.map((r) => r.id === roleId ? {
       ...r,
-      items: [...r.items, { id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_minutes: 15, pages: [] }],
+      items: [...r.items, { id: crypto.randomUUID(), title: '', description: '', service_type: 'test', proposed_price: 25, estimated_hours: 0.5, pages: [] }],
     } : r))
   }
 
@@ -149,7 +150,7 @@ export default function CreateJob({ user }) {
   }
 
   const canProceedStep1 = basics.project_id && basics.title.trim() && basics.assignment_type
-  const canProceedStep2 = roles.every((r) => r.name.trim() && r.items.every((item) => item.title.trim() && item.proposed_price > 0 && item.estimated_minutes > 0))
+  const canProceedStep2 = roles.every((r) => r.name.trim() && r.items.every((item) => item.title.trim() && item.proposed_price > 0 && item.estimated_hours > 0))
 
   const handlePublish = async () => {
     setSubmitting(true)
@@ -160,7 +161,7 @@ export default function CreateJob({ user }) {
         title: basics.title,
         description: basics.description,
         assignment_type: basics.assignment_type,
-        estimated_time_minutes: basics.estimated_time_minutes,
+        estimated_time_minutes: Math.round(totalHours * 60),
         roles: roles.map((r) => ({
           name: r.name,
           description: r.description,
@@ -174,7 +175,7 @@ export default function CreateJob({ user }) {
             description: item.description,
             service_type: item.service_type,
             proposed_price: parseFloat(item.proposed_price),
-            estimated_minutes: parseInt(item.estimated_minutes),
+            estimated_minutes: Math.round((parseFloat(item.estimated_hours) || 0.5) * 60),
             pages: item.pages.filter((p) => p.name.trim()).map((p) => ({
               name: p.name,
               url: p.url || '',
@@ -281,17 +282,6 @@ export default function CreateJob({ user }) {
                 </div>
               </div>
 
-              <div className="w-48">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Est. Total Time (min)</label>
-                <input
-                  type="number"
-                  min={1}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  value={basics.estimated_time_minutes}
-                  onChange={(e) => setBasics({ ...basics, estimated_time_minutes: parseInt(e.target.value) || 60 })}
-                />
-              </div>
-
               <div className="flex justify-end pt-2">
                 <button
                   onClick={() => setStep(2)}
@@ -373,22 +363,20 @@ export default function CreateJob({ user }) {
                     <div key={item.id} className="bg-gray-50 border border-gray-100 rounded-lg p-4">
                       <div className="flex items-start gap-3">
                         <div className="flex-1 space-y-3">
-                          <div className="grid grid-cols-2 gap-3">
-                            <input
-                              type="text"
-                              placeholder="Item title"
-                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
-                              value={item.title}
-                              onChange={(e) => updateItem(role.id, item.id, 'title', e.target.value)}
-                            />
-                            <input
-                              type="text"
-                              placeholder="Brief description"
-                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
-                              value={item.description}
-                              onChange={(e) => updateItem(role.id, item.id, 'description', e.target.value)}
-                            />
-                          </div>
+                          <input
+                            type="text"
+                            placeholder="Item title (e.g. Checkout Flow)"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                            value={item.title}
+                            onChange={(e) => updateItem(role.id, item.id, 'title', e.target.value)}
+                          />
+                          <textarea
+                            rows={2}
+                            placeholder="Expectations — what should the tester do, look for, or deliver?"
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-primary-500 resize-none"
+                            value={item.description}
+                            onChange={(e) => updateItem(role.id, item.id, 'description', e.target.value)}
+                          />
                           <div className="flex items-center gap-3">
                             <div className="flex gap-1.5">
                               {SERVICE_TYPES.map((st) => (
@@ -406,24 +394,29 @@ export default function CreateJob({ user }) {
                                 </button>
                               ))}
                             </div>
-                            <div className="flex items-center gap-1.5 ml-auto">
-                              <span className="text-xs text-gray-400">$</span>
-                              <input
-                                type="number"
-                                min={1}
-                                step={1}
-                                className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-primary-500"
-                                value={item.proposed_price}
-                                onChange={(e) => updateItem(role.id, item.id, 'proposed_price', parseFloat(e.target.value) || 0)}
-                              />
-                              <input
-                                type="number"
-                                min={1}
-                                className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-primary-500"
-                                value={item.estimated_minutes}
-                                onChange={(e) => updateItem(role.id, item.id, 'estimated_minutes', parseInt(e.target.value) || 1)}
-                              />
-                              <span className="text-xs text-gray-400">min</span>
+                            <div className="flex items-center gap-2 ml-auto">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min={0.5}
+                                  step={0.5}
+                                  className="w-16 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-primary-500"
+                                  value={item.estimated_hours}
+                                  onChange={(e) => updateItem(role.id, item.id, 'estimated_hours', parseFloat(e.target.value) || 0.5)}
+                                />
+                                <span className="text-xs text-gray-400">hrs</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-gray-400">$</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-primary-500"
+                                  value={item.proposed_price}
+                                  onChange={(e) => updateItem(role.id, item.id, 'proposed_price', parseFloat(e.target.value) || 0)}
+                                />
+                              </div>
                             </div>
                           </div>
 
@@ -513,6 +506,10 @@ export default function CreateJob({ user }) {
                   <span className="font-medium">{totalItems}</span>
                 </div>
                 <div className="flex justify-between text-gray-600">
+                  <span>Est. time</span>
+                  <span className="font-medium">{totalHours} hr{totalHours !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
                   <span>Proposed total</span>
                   <span className="font-medium">${proposedTotal.toFixed(2)}</span>
                 </div>
@@ -553,7 +550,7 @@ export default function CreateJob({ user }) {
             <p className="text-sm text-gray-500 mb-4">{basics.description || 'No description'}</p>
             <div className="flex gap-4 text-sm text-gray-500 mb-6">
               <span>Assignment: <strong className="text-gray-900">{ASSIGNMENT_TYPES.find((a) => a.id === basics.assignment_type)?.label}</strong></span>
-              <span>Est. time: <strong className="text-gray-900">{basics.estimated_time_minutes} min</strong></span>
+              <span>Est. time: <strong className="text-gray-900">{totalHours} hr{totalHours !== 1 ? 's' : ''}</strong></span>
             </div>
 
             {roles.map((role) => (
@@ -588,7 +585,7 @@ export default function CreateJob({ user }) {
                             )}
                           </div>
                           <div className="flex items-center gap-4 text-sm">
-                            <span className="text-gray-500">{item.estimated_minutes} min</span>
+                            <span className="text-gray-500">{item.estimated_hours} hr{item.estimated_hours !== 1 ? 's' : ''}</span>
                             <span className="font-semibold text-gray-900">${parseFloat(item.proposed_price).toFixed(2)}</span>
                           </div>
                         </div>
