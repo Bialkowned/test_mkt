@@ -20,7 +20,8 @@ export default function Login({ setUser }) {
       setUser(response.data.user)
       navigate('/dashboard')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed')
+      const detail = err.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(e => e.msg).join(', ') : 'Login failed')
     } finally {
       setLoading(false)
     }
@@ -133,6 +134,38 @@ export default function Login({ setUser }) {
               No account yet?{' '}
               <Link to="/register" className="font-medium text-primary-600 hover:text-primary-500">Create one</Link>
             </p>
+          </div>
+
+          {/* Dev accounts */}
+          <div className="mt-6 border-t border-gray-200 pt-5">
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Dev Accounts</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { email: 'alice@builder-demo.com', name: 'Alice C.', role: 'builder' },
+                { email: 'bob@builder-demo.com', name: 'Bob M.', role: 'builder' },
+                { email: 'carol@tester-demo.com', name: 'Carol K.', role: 'tester' },
+                { email: 'dave@tester-demo.com', name: 'Dave N.', role: 'tester' },
+                { email: 'emma@tester-demo.com', name: 'Emma R.', role: 'tester' },
+              ].map((acct) => (
+                <button
+                  key={acct.email}
+                  type="button"
+                  onClick={() => {
+                    setFormData({ email: acct.email, password: 'TestPass123' })
+                    setError('')
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors text-left"
+                >
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${acct.role === 'builder' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {acct.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{acct.name}</p>
+                    <p className="text-xs text-gray-400 capitalize">{acct.role}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -10,7 +10,6 @@ import Projects from './pages/Projects'
 import Jobs from './pages/Jobs'
 import JobDetail from './pages/JobDetail'
 import Onboarding from './pages/Onboarding'
-import GitHubCallback from './pages/GitHubCallback'
 import Settings from './pages/Settings'
 import Pricing from './pages/Pricing'
 import TesterProfile from './pages/TesterProfile'
@@ -124,9 +123,11 @@ function App() {
                 <Link to="/" className="text-2xl font-bold text-primary-600">
                   PeerTest Hub
                 </Link>
-                <Link to="/pricing" className="ml-6 text-gray-700 hover:text-gray-900 px-3 py-2">
-                  Pricing
-                </Link>
+                {(!user || user.role === 'builder') && (
+                  <Link to="/pricing" className="ml-6 text-gray-700 hover:text-gray-900 px-3 py-2">
+                    Pricing
+                  </Link>
+                )}
                 {user && (
                   <div className="ml-10 flex space-x-4">
                     <Link to="/dashboard" className="text-gray-700 hover:text-gray-900 px-3 py-2">
@@ -189,16 +190,15 @@ function App() {
         {/* Routes — onboarding gate blocks all app routes until complete */}
         {user && !user.onboarding_completed ? (
           <Routes>
-            <Route path="/onboarding/github/callback" element={<GitHubCallback setUser={setUser} />} />
             <Route path="/pricing" element={<Pricing user={user} />} />
-            <Route path="/testers/:username" element={<TesterProfile />} />
+            <Route path="/testers/:slug" element={<TesterProfile />} />
             <Route path="*" element={<Onboarding user={user} setUser={setUser} />} />
           </Routes>
         ) : (
           <Routes>
             <Route path="/" element={<Home user={user} />} />
             <Route path="/pricing" element={<Pricing user={user} />} />
-            <Route path="/testers/:username" element={<TesterProfile />} />
+            <Route path="/testers/:slug" element={<TesterProfile />} />
             <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login setUser={setUser} />} />
             <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register setUser={setUser} />} />
             <Route path="/dashboard" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />

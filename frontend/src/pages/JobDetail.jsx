@@ -3,8 +3,12 @@ import { useParams, Link } from 'react-router-dom'
 import axios from 'axios'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
+import useRrwebRecorder from '../hooks/useRrwebRecorder'
+import RrwebReplayPlayer from '../components/RrwebReplayPlayer'
+import ScreenshotAnnotator from '../components/ScreenshotAnnotator'
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null
 
 const SEVERITIES = ['low', 'medium', 'high', 'critical']
 const severityColors = {
@@ -26,6 +30,26 @@ const SERVICE_COLORS = {
   record: 'bg-red-100 text-red-700',
   document: 'bg-emerald-100 text-emerald-700',
   voiceover: 'bg-purple-100 text-purple-700',
+}
+
+function formatDurationBadge(seconds) {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}m ${s}s`
+}
+
+function SessionBar({ duration }) {
+  const m = Math.floor(duration / 60)
+  const s = duration % 60
+  return (
+    <div className="sticky top-0 z-20 bg-gray-900 text-white px-4 py-2.5 rounded-lg mb-4 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+        <span className="text-sm font-medium">Session Recording</span>
+      </div>
+      <span className="text-sm font-mono">{m}:{s.toString().padStart(2, '0')}</span>
+    </div>
+  )
 }
 
 function formatTime(seconds) {
@@ -158,6 +182,40 @@ export default function JobDetail({ user }) {
           </span>
         </div>
         <p className="text-gray-700 whitespace-pre-wrap mb-6">{job.description}</p>
+
+        {(job.test_url || job.test_credentials) && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 space-y-3">
+            {job.test_url && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Test Site</label>
+                <a href={job.test_url} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-700 font-medium text-sm break-all">{job.test_url}</a>
+              </div>
+            )}
+            {job.test_credentials && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Login Credentials</label>
+                <div className="text-sm space-y-1">
+                  {job.test_credentials.email && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500 w-16">Email:</span>
+                      <code className="bg-white border border-gray-200 px-2 py-0.5 rounded text-gray-900 font-mono text-xs select-all">{job.test_credentials.email}</code>
+                    </div>
+                  )}
+                  {job.test_credentials.password && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500 w-16">Password:</span>
+                      <code className="bg-white border border-gray-200 px-2 py-0.5 rounded text-gray-900 font-mono text-xs select-all">{job.test_credentials.password}</code>
+                    </div>
+                  )}
+                  {job.test_credentials.notes && (
+                    <p className="text-gray-600 text-xs mt-1">{job.test_credentials.notes}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-6 text-sm text-gray-500">
           <span><strong className="text-gray-900">${job.payout_amount}</strong> per tester</span>
           <span>{job.estimated_time_minutes} min estimated</span>
@@ -731,6 +789,12 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
   const serviceType = submission.service_type || 'test'
   const isEditable = submission.status === 'draft'
 
+  // Session recording
+  const rrweb = useRrwebRecorder()
+  const [sessionStarted, setSessionStarted] = useState(false)
+  const [sessionEnded, setSessionEnded] = useState(!!submission.rrweb_recording_url)
+  const [uploadingRrweb, setUploadingRrweb] = useState(false)
+
   // Form state
   const [form, setForm] = useState({
     overall_feedback: submission.overall_feedback || '',
@@ -739,7 +803,27 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
     bug_reports: submission.bug_reports || [],
     document_content: submission.document_content || '',
     transcript: submission.transcript || '',
+    screenshots: submission.screenshots || [],
   })
+
+  // Bug form state
+  const [showBugForm, setShowBugForm] = useState(false)
+  const [bugForm, setBugForm] = useState({ title: '', description: '', severity: 'medium', steps_to_reproduce: '', screenshot_url: '' })
+  const [showBugAnnotator, setShowBugAnnotator] = useState(false)
+  const [showGeneralAnnotator, setShowGeneralAnnotator] = useState(false)
+
+  const addBug = () => {
+    if (!bugForm.title.trim() || !bugForm.description.trim()) return
+    const bug = { ...bugForm }
+    if (!bug.screenshot_url) delete bug.screenshot_url
+    setForm({ ...form, bug_reports: [...form.bug_reports, bug] })
+    setBugForm({ title: '', description: '', severity: 'medium', steps_to_reproduce: '', screenshot_url: '' })
+    setShowBugForm(false)
+  }
+
+  const removeBug = (index) => {
+    setForm({ ...form, bug_reports: form.bug_reports.filter((_, i) => i !== index) })
+  }
 
   // Video state
   const [recordingState, setRecordingState] = useState('idle')
@@ -754,6 +838,33 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
     submitted: 'bg-amber-100 text-amber-700',
     approved: 'bg-green-100 text-green-700',
     rejected: 'bg-red-100 text-red-700',
+  }
+
+  const handleStartSession = () => {
+    rrweb.startSession()
+    setSessionStarted(true)
+    axios.put(`/api/submissions/${submission.id}/session-timing`, {
+      session_started_at: new Date().toISOString(),
+    }).catch(() => {})
+  }
+
+  const handleEndSession = async () => {
+    const result = rrweb.endSession()
+    setUploadingRrweb(true)
+    try {
+      await axios.post(`/api/submissions/${submission.id}/upload-rrweb`, result.blob, {
+        headers: { 'Content-Type': 'application/gzip' },
+      })
+      await axios.put(`/api/submissions/${submission.id}/session-timing`, {
+        session_ended_at: result.endedAt,
+        session_duration_seconds: result.duration,
+      })
+      setSessionEnded(true)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to upload session recording')
+    } finally {
+      setUploadingRrweb(false)
+    }
   }
 
   const startRecording = async () => {
@@ -831,7 +942,6 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
     }
   }
 
-  // Find item title from job context (passed via submission fields)
   const itemTitle = submission.job_title ? `${submission.job_title}` : ''
 
   return (
@@ -851,141 +961,252 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
         </div>
       )}
 
-      <div className="space-y-4">
-        {/* Service-type-specific form */}
-        {(serviceType === 'test' || !serviceType) && (
-          <>
+      {/* Session gate — must start session before seeing form */}
+      {isEditable && !sessionStarted && !sessionEnded && (
+        <div className="text-center py-6">
+          <p className="text-sm text-gray-500 mb-4">Start a session to begin working on this item. Your workspace activity will be recorded.</p>
+          <button type="button" onClick={handleStartSession} className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium text-sm">
+            Start Session
+          </button>
+        </div>
+      )}
+
+      {/* Session bar while recording */}
+      {isEditable && sessionStarted && !sessionEnded && rrweb.isRecording && (
+        <SessionBar duration={rrweb.duration} />
+      )}
+
+      {/* Form — only visible after session started or already ended */}
+      {(!isEditable || sessionStarted || sessionEnded) && (
+        <div className="space-y-4">
+          {(serviceType === 'test' || !serviceType) && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Overall Feedback <span className="text-red-500">*</span></label>
+                {isEditable ? (
+                  <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={form.overall_feedback} onChange={(e) => setForm({ ...form, overall_feedback: e.target.value })} placeholder="Describe your experience..." />
+                ) : (
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{form.overall_feedback}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Usability Score <span className="text-red-500">*</span></label>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button key={n} type="button" disabled={!isEditable} onClick={() => setForm({ ...form, usability_score: n })} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${n <= (form.usability_score || 0) ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-400'} ${!isEditable ? 'cursor-default' : 'cursor-pointer hover:bg-gray-200'}`}>{n}</button>
+                  ))}
+                </div>
+              </div>
+              {/* Bug Reports */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">Bug Reports ({form.bug_reports.length})</label>
+                  {isEditable && <button type="button" onClick={() => setShowBugForm(!showBugForm)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">{showBugForm ? 'Cancel' : '+ Add Bug'}</button>}
+                </div>
+                {showBugForm && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-3 space-y-3">
+                    <input type="text" placeholder="Bug title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.title} onChange={(e) => setBugForm({ ...bugForm, title: e.target.value })} />
+                    <textarea rows={2} placeholder="Describe the bug..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.description} onChange={(e) => setBugForm({ ...bugForm, description: e.target.value })} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.severity} onChange={(e) => setBugForm({ ...bugForm, severity: e.target.value })}>
+                        {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <input type="text" placeholder="Steps to reproduce" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.steps_to_reproduce} onChange={(e) => setBugForm({ ...bugForm, steps_to_reproduce: e.target.value })} />
+                    </div>
+                    {bugForm.screenshot_url ? (
+                      <div className="flex items-start gap-2">
+                        <a href={bugForm.screenshot_url} target="_blank" rel="noopener noreferrer">
+                          <img src={bugForm.screenshot_url} alt="Bug screenshot" className="h-20 rounded border border-gray-200 object-cover cursor-pointer hover:opacity-80" />
+                        </a>
+                        <button type="button" onClick={() => setBugForm({ ...bugForm, screenshot_url: '' })} className="text-red-400 hover:text-red-600 text-xs mt-1">Remove</button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setShowBugAnnotator(true)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-600 font-medium">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
+                        Attach Screenshot
+                      </button>
+                    )}
+                    <button type="button" onClick={addBug} className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium">Add Bug</button>
+                  </div>
+                )}
+                <ScreenshotAnnotator isOpen={showBugAnnotator} onClose={() => setShowBugAnnotator(false)} onComplete={(url) => setBugForm((f) => ({ ...f, screenshot_url: url }))} submissionId={submission.id} />
+                {form.bug_reports.length === 0 ? (
+                  <p className="text-sm text-gray-400">No bugs reported yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {form.bug_reports.map((bug, i) => (
+                      <div key={i} className="bg-gray-50 border border-gray-100 rounded p-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-sm">{bug.title}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${severityColors[bug.severity] || 'bg-gray-100 text-gray-600'}`}>{bug.severity}</span>
+                            </div>
+                            <p className="text-sm text-gray-600">{bug.description}</p>
+                            {bug.steps_to_reproduce && <p className="text-xs text-gray-500 mt-1"><strong>Steps:</strong> {bug.steps_to_reproduce}</p>}
+                          </div>
+                          {isEditable && <button type="button" onClick={() => removeBug(i)} className="text-red-400 hover:text-red-600 text-sm ml-3 shrink-0">Remove</button>}
+                        </div>
+                        {bug.screenshot_url && (
+                          <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                            <img src={bug.screenshot_url} alt="Bug screenshot" className="h-24 rounded border border-gray-200 object-cover hover:opacity-80" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {serviceType === 'record' && (
+            <>
+              {isEditable && !videoUrl && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording <span className="text-red-500">*</span></label>
+                  {recordingState === 'idle' && (
+                    <button type="button" onClick={startRecording} className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium">
+                      <span className="w-3 h-3 rounded-full bg-red-500" />Start Recording
+                    </button>
+                  )}
+                  {recordingState === 'recording' && (
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-2 text-sm text-red-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />Recording...</span>
+                      <button type="button" onClick={stopRecording} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium">Stop</button>
+                    </div>
+                  )}
+                  {recordingState === 'recorded' && (
+                    <div className="space-y-3">
+                      <video src={recordedUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
+                      <div className="flex gap-2">
+                        <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload'}</button>
+                        <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm">Discard</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {videoUrl && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
+                  <video src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Feedback</label>
+                {isEditable ? (
+                  <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={form.overall_feedback} onChange={(e) => setForm({ ...form, overall_feedback: e.target.value })} placeholder="Written feedback about the recording..." />
+                ) : (
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{form.overall_feedback}</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {serviceType === 'document' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Overall Feedback <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Documentation <span className="text-red-500">*</span></label>
               {isEditable ? (
-                <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={form.overall_feedback} onChange={(e) => setForm({ ...form, overall_feedback: e.target.value })} placeholder="Describe your experience..." />
+                <textarea rows={8} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary-500" value={form.document_content} onChange={(e) => setForm({ ...form, document_content: e.target.value })} placeholder="Write step-by-step documentation of the user journey..." />
               ) : (
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{form.overall_feedback}</p>
+                <div className="bg-gray-50 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap">{form.document_content}</div>
               )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Usability Score <span className="text-red-500">*</span></label>
-              <div className="flex gap-1.5">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} type="button" disabled={!isEditable} onClick={() => setForm({ ...form, usability_score: n })} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${n <= (form.usability_score || 0) ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-400'} ${!isEditable ? 'cursor-default' : 'cursor-pointer hover:bg-gray-200'}`}>{n}</button>
+          )}
+
+          {serviceType === 'voiceover' && (
+            <>
+              {isEditable && !videoUrl && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Narrated Recording <span className="text-red-500">*</span></label>
+                  <p className="text-xs text-gray-400 mb-2">Record your screen with microphone enabled. Narrate your experience as you use the app.</p>
+                  {recordingState === 'idle' && (
+                    <button type="button" onClick={startRecording} className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium">
+                      <span className="w-3 h-3 rounded-full bg-red-500" />Start Narrated Recording
+                    </button>
+                  )}
+                  {recordingState === 'recording' && (
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-2 text-sm text-red-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />Recording...</span>
+                      <button type="button" onClick={stopRecording} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium">Stop</button>
+                    </div>
+                  )}
+                  {recordingState === 'recorded' && (
+                    <div className="space-y-3">
+                      <video src={recordedUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
+                      <div className="flex gap-2">
+                        <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload'}</button>
+                        <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm">Discard</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {videoUrl && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Narrated Recording</label>
+                  <video src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Transcript / Notes</label>
+                {isEditable ? (
+                  <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={form.transcript} onChange={(e) => setForm({ ...form, transcript: e.target.value })} placeholder="Optional written transcript or notes..." />
+                ) : (
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{form.transcript || 'No transcript'}</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* General Screenshots */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">Screenshots ({form.screenshots.length})</label>
+              {isEditable && <button type="button" onClick={() => setShowGeneralAnnotator(true)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">+ Add Screenshot</button>}
+            </div>
+            <ScreenshotAnnotator isOpen={showGeneralAnnotator} onClose={() => setShowGeneralAnnotator(false)} onComplete={(url) => setForm((f) => ({ ...f, screenshots: [...f.screenshots, url] }))} submissionId={submission.id} />
+            {form.screenshots.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {form.screenshots.map((url, i) => (
+                  <div key={i} className="relative group">
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                      <img src={url} alt={`Screenshot ${i + 1}`} className="h-20 rounded border border-gray-200 object-cover hover:opacity-80" />
+                    </a>
+                    {isEditable && (
+                      <button type="button" onClick={() => setForm((f) => ({ ...f, screenshots: f.screenshots.filter((_, j) => j !== i) }))} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
+                    )}
+                  </div>
                 ))}
               </div>
-            </div>
-          </>
-        )}
-
-        {serviceType === 'record' && (
-          <>
-            {isEditable && !videoUrl && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording <span className="text-red-500">*</span></label>
-                {recordingState === 'idle' && (
-                  <button type="button" onClick={startRecording} className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium">
-                    <span className="w-3 h-3 rounded-full bg-red-500" />Start Recording
-                  </button>
-                )}
-                {recordingState === 'recording' && (
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-2 text-sm text-red-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />Recording...</span>
-                    <button type="button" onClick={stopRecording} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium">Stop</button>
-                  </div>
-                )}
-                {recordingState === 'recorded' && (
-                  <div className="space-y-3">
-                    <video src={recordedUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
-                    <div className="flex gap-2">
-                      <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload'}</button>
-                      <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm">Discard</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            {videoUrl && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
-                <video src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
-              </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Feedback</label>
-              {isEditable ? (
-                <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={form.overall_feedback} onChange={(e) => setForm({ ...form, overall_feedback: e.target.value })} placeholder="Written feedback about the recording..." />
-              ) : (
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{form.overall_feedback}</p>
-              )}
-            </div>
-          </>
-        )}
-
-        {serviceType === 'document' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Documentation <span className="text-red-500">*</span></label>
-            {isEditable ? (
-              <textarea rows={8} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary-500" value={form.document_content} onChange={(e) => setForm({ ...form, document_content: e.target.value })} placeholder="Write step-by-step documentation of the user journey..." />
             ) : (
-              <div className="bg-gray-50 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap">{form.document_content}</div>
+              <p className="text-sm text-gray-400">No screenshots attached.</p>
             )}
           </div>
-        )}
 
-        {serviceType === 'voiceover' && (
-          <>
-            {isEditable && !videoUrl && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Narrated Recording <span className="text-red-500">*</span></label>
-                <p className="text-xs text-gray-400 mb-2">Record your screen with microphone enabled. Narrate your experience as you use the app.</p>
-                {recordingState === 'idle' && (
-                  <button type="button" onClick={startRecording} className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium">
-                    <span className="w-3 h-3 rounded-full bg-red-500" />Start Narrated Recording
-                  </button>
-                )}
-                {recordingState === 'recording' && (
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-2 text-sm text-red-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />Recording...</span>
-                    <button type="button" onClick={stopRecording} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium">Stop</button>
-                  </div>
-                )}
-                {recordingState === 'recorded' && (
-                  <div className="space-y-3">
-                    <video src={recordedUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
-                    <div className="flex gap-2">
-                      <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload'}</button>
-                      <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm">Discard</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            {videoUrl && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Narrated Recording</label>
-                <video src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
-              </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Transcript / Notes</label>
-              {isEditable ? (
-                <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={form.transcript} onChange={(e) => setForm({ ...form, transcript: e.target.value })} placeholder="Optional written transcript or notes..." />
-              ) : (
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{form.transcript || 'No transcript'}</p>
-              )}
+          {/* End session button */}
+          {isEditable && sessionStarted && !sessionEnded && (
+            <div className="pt-2">
+              <button type="button" onClick={handleEndSession} disabled={uploadingRrweb} className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium disabled:opacity-50">
+                {uploadingRrweb ? 'Uploading session...' : 'End Session'}
+              </button>
             </div>
-          </>
-        )}
+          )}
 
-        {/* Actions */}
-        {isEditable && (
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={handleSave} disabled={saving} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50">
-              {saving ? 'Saving...' : 'Save Draft'}
-            </button>
-            <button type="button" onClick={handleSubmit} disabled={saving} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50">
-              {saving ? 'Submitting...' : 'Submit'}
-            </button>
-          </div>
-        )}
-      </div>
+          {/* Actions — only after session ended */}
+          {isEditable && sessionEnded && (
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={handleSave} disabled={saving} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button type="button" onClick={handleSubmit} disabled={saving} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50">
+                {saving ? 'Submitting...' : 'Submit'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1151,6 +1372,11 @@ function BuilderSubmissionCard({ submission, onUpdate, setError }) {
                       </div>
                       <p className="text-sm text-gray-600">{bug.description}</p>
                       {bug.steps_to_reproduce && <p className="text-xs text-gray-500 mt-1"><strong>Steps:</strong> {bug.steps_to_reproduce}</p>}
+                      {bug.screenshot_url && (
+                        <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                          <img src={bug.screenshot_url} alt="Bug screenshot" className="h-24 rounded border border-gray-200 object-cover hover:opacity-80" />
+                        </a>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1163,10 +1389,33 @@ function BuilderSubmissionCard({ submission, onUpdate, setError }) {
                 <p className="text-gray-700 whitespace-pre-wrap">{submission.suggestions}</p>
               </div>
             )}
+
+            {submission.screenshots?.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-2">Screenshots ({submission.screenshots.length})</label>
+                <div className="flex flex-wrap gap-2">
+                  {submission.screenshots.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                      <img src={url} alt={`Screenshot ${i + 1}`} className="h-24 rounded border border-gray-200 object-cover hover:opacity-80" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {submission.video_url && (
             <VideoTagPanel submission={submission} onUpdate={onUpdate} setError={setError} onSeek={handleTagSeek} />
+          )}
+
+          {submission.rrweb_recording_url && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-500 mb-2">Session Replay</label>
+              {submission.session_duration_seconds > 0 && (
+                <p className="text-sm text-gray-700 mb-2">Tester worked for <strong>{formatDurationBadge(submission.session_duration_seconds)}</strong></p>
+              )}
+              <RrwebReplayPlayer rrwebUrl={submission.rrweb_recording_url} sessionDuration={submission.session_duration_seconds} />
+            </div>
           )}
 
           {submission.review_feedback && (
@@ -1235,10 +1484,13 @@ function TesterSubmission({ submission, onUpdate, setError }) {
     usability_score: submission.usability_score || null,
     suggestions: submission.suggestions || '',
     bug_reports: submission.bug_reports || [],
+    screenshots: submission.screenshots || [],
   })
   const [saving, setSaving] = useState(false)
   const [showBugForm, setShowBugForm] = useState(false)
-  const [bugForm, setBugForm] = useState({ title: '', description: '', severity: 'medium', steps_to_reproduce: '' })
+  const [bugForm, setBugForm] = useState({ title: '', description: '', severity: 'medium', steps_to_reproduce: '', screenshot_url: '' })
+  const [showBugAnnotator, setShowBugAnnotator] = useState(false)
+  const [showGeneralAnnotator, setShowGeneralAnnotator] = useState(false)
   const [recordingState, setRecordingState] = useState('idle')
   const [mediaRecorder, setMediaRecorder] = useState(null)
   const [recordedBlob, setRecordedBlob] = useState(null)
@@ -1247,8 +1499,41 @@ function TesterSubmission({ submission, onUpdate, setError }) {
   const [videoUrl, setVideoUrl] = useState(submission.video_url || null)
   const videoRef = useRef(null)
 
+  // Session recording
+  const rrweb = useRrwebRecorder()
+  const [sessionStarted, setSessionStarted] = useState(false)
+  const [sessionEnded, setSessionEnded] = useState(!!submission.rrweb_recording_url)
+  const [uploadingRrweb, setUploadingRrweb] = useState(false)
+
   const isEditable = submission.status === 'draft'
   const supportsScreenRecording = typeof navigator !== 'undefined' && navigator.mediaDevices?.getDisplayMedia
+
+  const handleStartSession = () => {
+    rrweb.startSession()
+    setSessionStarted(true)
+    axios.put(`/api/submissions/${submission.id}/session-timing`, {
+      session_started_at: new Date().toISOString(),
+    }).catch(() => {})
+  }
+
+  const handleEndSession = async () => {
+    const result = rrweb.endSession()
+    setUploadingRrweb(true)
+    try {
+      await axios.post(`/api/submissions/${submission.id}/upload-rrweb`, result.blob, {
+        headers: { 'Content-Type': 'application/gzip' },
+      })
+      await axios.put(`/api/submissions/${submission.id}/session-timing`, {
+        session_ended_at: result.endedAt,
+        session_duration_seconds: result.duration,
+      })
+      setSessionEnded(true)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to upload session recording')
+    } finally {
+      setUploadingRrweb(false)
+    }
+  }
 
   const startRecording = async () => {
     try {
@@ -1334,8 +1619,10 @@ function TesterSubmission({ submission, onUpdate, setError }) {
 
   const addBug = () => {
     if (!bugForm.title.trim() || !bugForm.description.trim()) return
-    setForm({ ...form, bug_reports: [...form.bug_reports, { ...bugForm }] })
-    setBugForm({ title: '', description: '', severity: 'medium', steps_to_reproduce: '' })
+    const bug = { ...bugForm }
+    if (!bug.screenshot_url) delete bug.screenshot_url
+    setForm({ ...form, bug_reports: [...form.bug_reports, bug] })
+    setBugForm({ title: '', description: '', severity: 'medium', steps_to_reproduce: '', screenshot_url: '' })
     setShowBugForm(false)
   }
 
@@ -1354,123 +1641,197 @@ function TesterSubmission({ submission, onUpdate, setError }) {
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-5">
-        {isEditable && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
-            {!supportsScreenRecording ? (
-              <p className="text-sm text-gray-400">Screen recording is not supported in this browser.</p>
-            ) : videoUrl ? (
-              <div>
-                <video src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '360px' }} />
-                <p className="text-xs text-green-600 mt-2 font-medium">Video uploaded successfully</p>
-              </div>
-            ) : recordingState === 'idle' ? (
-              <button type="button" onClick={startRecording} className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium">
-                <span className="w-3 h-3 rounded-full bg-red-500" />Start Screen Recording
-              </button>
-            ) : recordingState === 'recording' ? (
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-2 text-sm text-red-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />Recording...</span>
-                <button type="button" onClick={stopRecording} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium">Stop Recording</button>
-              </div>
-            ) : recordingState === 'recorded' ? (
-              <div className="space-y-3">
-                <video src={recordedUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '360px' }} />
-                <div className="flex gap-2">
-                  <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload Recording'}</button>
-                  <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Discard</button>
+      {/* Session gate */}
+      {isEditable && !sessionStarted && !sessionEnded && (
+        <div className="bg-white border border-gray-200 rounded-lg p-8 text-center mb-6">
+          <p className="text-sm text-gray-500 mb-4">Start a session to begin working. Your workspace activity will be recorded.</p>
+          <button type="button" onClick={handleStartSession} className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium text-sm">
+            Start Session
+          </button>
+        </div>
+      )}
+
+      {/* Session bar while recording */}
+      {isEditable && sessionStarted && !sessionEnded && rrweb.isRecording && (
+        <SessionBar duration={rrweb.duration} />
+      )}
+
+      {/* Form — only visible after session started or session already ended or not editable */}
+      {(!isEditable || sessionStarted || sessionEnded) && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-5">
+          {isEditable && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
+              {!supportsScreenRecording ? (
+                <p className="text-sm text-gray-400">Screen recording is not supported in this browser.</p>
+              ) : videoUrl ? (
+                <div>
+                  <video src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '360px' }} />
+                  <p className="text-xs text-green-600 mt-2 font-medium">Video uploaded successfully</p>
                 </div>
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        {!isEditable && videoUrl && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
-            <video ref={videoRef} src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '360px' }} />
-          </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Overall Feedback <span className="text-red-500">*</span></label>
-          {isEditable ? (
-            <textarea rows={4} placeholder="Describe your experience using the app..." className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" value={form.overall_feedback} onChange={(e) => setForm({ ...form, overall_feedback: e.target.value })} />
-          ) : (
-            <p className="text-gray-700 whitespace-pre-wrap">{form.overall_feedback}</p>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Usability Score <span className="text-red-500">*</span></label>
-          <div className="flex gap-2">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} type="button" disabled={!isEditable} onClick={() => setForm({ ...form, usability_score: n })} className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${n <= (form.usability_score || 0) ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'} ${!isEditable ? 'cursor-default' : 'cursor-pointer'}`}>{n}</button>
-            ))}
-            <span className="ml-2 text-sm text-gray-500 self-center">{form.usability_score ? ['', 'Poor', 'Below Average', 'Average', 'Good', 'Excellent'][form.usability_score] : 'Select a score'}</span>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium text-gray-700">Bug Reports ({form.bug_reports.length})</label>
-            {isEditable && <button type="button" onClick={() => setShowBugForm(!showBugForm)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">{showBugForm ? 'Cancel' : '+ Add Bug'}</button>}
-          </div>
-          {showBugForm && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-3 space-y-3">
-              <input type="text" placeholder="Bug title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.title} onChange={(e) => setBugForm({ ...bugForm, title: e.target.value })} />
-              <textarea rows={2} placeholder="Describe the bug..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.description} onChange={(e) => setBugForm({ ...bugForm, description: e.target.value })} />
-              <div className="grid grid-cols-2 gap-3">
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.severity} onChange={(e) => setBugForm({ ...bugForm, severity: e.target.value })}>
-                  {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <input type="text" placeholder="Steps to reproduce" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.steps_to_reproduce} onChange={(e) => setBugForm({ ...bugForm, steps_to_reproduce: e.target.value })} />
-              </div>
-              <button type="button" onClick={addBug} className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium">Add Bug</button>
-            </div>
-          )}
-          {form.bug_reports.length === 0 ? (
-            <p className="text-sm text-gray-400">No bugs reported yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {form.bug_reports.map((bug, i) => (
-                <div key={i} className="bg-gray-50 border border-gray-100 rounded p-3 flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">{bug.title}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${severityColors[bug.severity] || 'bg-gray-100 text-gray-600'}`}>{bug.severity}</span>
-                    </div>
-                    <p className="text-sm text-gray-600">{bug.description}</p>
-                    {bug.steps_to_reproduce && <p className="text-xs text-gray-500 mt-1"><strong>Steps:</strong> {bug.steps_to_reproduce}</p>}
+              ) : recordingState === 'idle' ? (
+                <button type="button" onClick={startRecording} className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium">
+                  <span className="w-3 h-3 rounded-full bg-red-500" />Start Screen Recording
+                </button>
+              ) : recordingState === 'recording' ? (
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-2 text-sm text-red-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />Recording...</span>
+                  <button type="button" onClick={stopRecording} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium">Stop Recording</button>
+                </div>
+              ) : recordingState === 'recorded' ? (
+                <div className="space-y-3">
+                  <video src={recordedUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '360px' }} />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload Recording'}</button>
+                    <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Discard</button>
                   </div>
-                  {isEditable && <button type="button" onClick={() => removeBug(i)} className="text-red-400 hover:text-red-600 text-sm ml-3 shrink-0">Remove</button>}
                 </div>
+              ) : null}
+            </div>
+          )}
+
+          {!isEditable && videoUrl && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
+              <video ref={videoRef} src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '360px' }} />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Overall Feedback <span className="text-red-500">*</span></label>
+            {isEditable ? (
+              <textarea rows={4} placeholder="Describe your experience using the app..." className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" value={form.overall_feedback} onChange={(e) => setForm({ ...form, overall_feedback: e.target.value })} />
+            ) : (
+              <p className="text-gray-700 whitespace-pre-wrap">{form.overall_feedback}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Usability Score <span className="text-red-500">*</span></label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button key={n} type="button" disabled={!isEditable} onClick={() => setForm({ ...form, usability_score: n })} className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${n <= (form.usability_score || 0) ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'} ${!isEditable ? 'cursor-default' : 'cursor-pointer'}`}>{n}</button>
               ))}
+              <span className="ml-2 text-sm text-gray-500 self-center">{form.usability_score ? ['', 'Poor', 'Below Average', 'Average', 'Good', 'Excellent'][form.usability_score] : 'Select a score'}</span>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">Bug Reports ({form.bug_reports.length})</label>
+              {isEditable && <button type="button" onClick={() => setShowBugForm(!showBugForm)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">{showBugForm ? 'Cancel' : '+ Add Bug'}</button>}
+            </div>
+            {showBugForm && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-3 space-y-3">
+                <input type="text" placeholder="Bug title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.title} onChange={(e) => setBugForm({ ...bugForm, title: e.target.value })} />
+                <textarea rows={2} placeholder="Describe the bug..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.description} onChange={(e) => setBugForm({ ...bugForm, description: e.target.value })} />
+                <div className="grid grid-cols-2 gap-3">
+                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.severity} onChange={(e) => setBugForm({ ...bugForm, severity: e.target.value })}>
+                    {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <input type="text" placeholder="Steps to reproduce" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.steps_to_reproduce} onChange={(e) => setBugForm({ ...bugForm, steps_to_reproduce: e.target.value })} />
+                </div>
+                {bugForm.screenshot_url ? (
+                  <div className="flex items-start gap-2">
+                    <a href={bugForm.screenshot_url} target="_blank" rel="noopener noreferrer">
+                      <img src={bugForm.screenshot_url} alt="Bug screenshot" className="h-20 rounded border border-gray-200 object-cover cursor-pointer hover:opacity-80" />
+                    </a>
+                    <button type="button" onClick={() => setBugForm({ ...bugForm, screenshot_url: '' })} className="text-red-400 hover:text-red-600 text-xs mt-1">Remove</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setShowBugAnnotator(true)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-600 font-medium">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
+                    Attach Screenshot
+                  </button>
+                )}
+                <button type="button" onClick={addBug} className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium">Add Bug</button>
+              </div>
+            )}
+            <ScreenshotAnnotator isOpen={showBugAnnotator} onClose={() => setShowBugAnnotator(false)} onComplete={(url) => setBugForm({ ...bugForm, screenshot_url: url })} submissionId={submission.id} />
+            {form.bug_reports.length === 0 ? (
+              <p className="text-sm text-gray-400">No bugs reported yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {form.bug_reports.map((bug, i) => (
+                  <div key={i} className="bg-gray-50 border border-gray-100 rounded p-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm">{bug.title}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${severityColors[bug.severity] || 'bg-gray-100 text-gray-600'}`}>{bug.severity}</span>
+                        </div>
+                        <p className="text-sm text-gray-600">{bug.description}</p>
+                        {bug.steps_to_reproduce && <p className="text-xs text-gray-500 mt-1"><strong>Steps:</strong> {bug.steps_to_reproduce}</p>}
+                      </div>
+                      {isEditable && <button type="button" onClick={() => removeBug(i)} className="text-red-400 hover:text-red-600 text-sm ml-3 shrink-0">Remove</button>}
+                    </div>
+                    {bug.screenshot_url && (
+                      <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                        <img src={bug.screenshot_url} alt="Bug screenshot" className="h-24 rounded border border-gray-200 object-cover hover:opacity-80" />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* General Screenshots */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">Screenshots ({form.screenshots.length})</label>
+              {isEditable && <button type="button" onClick={() => setShowGeneralAnnotator(true)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">+ Add Screenshot</button>}
+            </div>
+            <ScreenshotAnnotator isOpen={showGeneralAnnotator} onClose={() => setShowGeneralAnnotator(false)} onComplete={(url) => setForm((f) => ({ ...f, screenshots: [...f.screenshots, url] }))} submissionId={submission.id} />
+            {form.screenshots.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {form.screenshots.map((url, i) => (
+                  <div key={i} className="relative group">
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                      <img src={url} alt={`Screenshot ${i + 1}`} className="h-24 rounded border border-gray-200 object-cover hover:opacity-80" />
+                    </a>
+                    {isEditable && (
+                      <button type="button" onClick={() => setForm((f) => ({ ...f, screenshots: f.screenshots.filter((_, j) => j !== i) }))} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No screenshots attached.</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Suggestions</label>
+            {isEditable ? (
+              <textarea rows={3} placeholder="Any suggestions for improvement..." className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" value={form.suggestions} onChange={(e) => setForm({ ...form, suggestions: e.target.value })} />
+            ) : (
+              <p className="text-gray-700 whitespace-pre-wrap">{form.suggestions || 'None'}</p>
+            )}
+          </div>
+
+          {videoUrl && !isEditable && (
+            <VideoTagPanel submission={submission} onUpdate={onUpdate} setError={setError} onSeek={handleTagSeek} />
+          )}
+
+          {/* End session button */}
+          {isEditable && sessionStarted && !sessionEnded && (
+            <div className="pt-2">
+              <button type="button" onClick={handleEndSession} disabled={uploadingRrweb} className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium disabled:opacity-50">
+                {uploadingRrweb ? 'Uploading session...' : 'End Session'}
+              </button>
+            </div>
+          )}
+
+          {/* Actions — only after session ended */}
+          {isEditable && sessionEnded && (
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={handleSave} disabled={saving} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50">{saving ? 'Saving...' : 'Save Draft'}</button>
+              <button type="button" onClick={handleSubmit} disabled={saving} className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{saving ? 'Submitting...' : 'Submit Feedback'}</button>
             </div>
           )}
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Suggestions</label>
-          {isEditable ? (
-            <textarea rows={3} placeholder="Any suggestions for improvement..." className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" value={form.suggestions} onChange={(e) => setForm({ ...form, suggestions: e.target.value })} />
-          ) : (
-            <p className="text-gray-700 whitespace-pre-wrap">{form.suggestions || 'None'}</p>
-          )}
-        </div>
-
-        {videoUrl && !isEditable && (
-          <VideoTagPanel submission={submission} onUpdate={onUpdate} setError={setError} onSeek={handleTagSeek} />
-        )}
-
-        {isEditable && (
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={handleSave} disabled={saving} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50">{saving ? 'Saving...' : 'Save Draft'}</button>
-            <button type="button" onClick={handleSubmit} disabled={saving} className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{saving ? 'Submitting...' : 'Submit Feedback'}</button>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }

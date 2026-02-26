@@ -16,7 +16,6 @@ import secrets
 import random
 import stripe
 import resend
-import httpx
 import logging
 import aiofiles
 
@@ -41,10 +40,6 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "PeerTest Hub <noreply@yourdomain.com>")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5008")
-
-GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
-GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
-GITHUB_REDIRECT_URI = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:5008/onboarding/github/callback")
 
 PLATFORM_FEE_RATE = 0.15
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
@@ -78,13 +73,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
+MAX_SCREENSHOT_SIZE = 10 * 1024 * 1024  # 10MB
+
 @app.on_event("startup")
 async def create_indexes():
     Path(UPLOAD_DIR).mkdir(exist_ok=True)
+    (Path(UPLOAD_DIR) / "screenshots").mkdir(exist_ok=True)
     await users_col.create_index("email", unique=True)
     await users_col.create_index("email_verification_code", sparse=True)
     await users_col.create_index("stripe_connect_id", sparse=True)
-    await users_col.create_index("github_username", sparse=True)
+    await users_col.create_index("public_slug", sparse=True)
     await projects_col.create_index("builder_email")
     await jobs_col.create_index("builder_email")
     await jobs_col.create_index("status")
@@ -133,6 +132,8 @@ class JobCreate(BaseModel):
     payout_amount: float = Field(..., gt=0, le=1000)
     max_testers: int = Field(..., ge=1, le=10)
     estimated_time_minutes: int
+    test_url: Optional[str] = None
+    test_credentials: Optional[dict] = None  # {email, password, notes}
 
 class SubmissionUpdate(BaseModel):
     overall_feedback: Optional[str] = None
@@ -141,6 +142,7 @@ class SubmissionUpdate(BaseModel):
     suggestions: Optional[str] = None
     document_content: Optional[str] = None
     transcript: Optional[str] = None
+    screenshots: Optional[List[str]] = None
 
 class ReviewAction(BaseModel):
     feedback: str = ""
@@ -161,9 +163,6 @@ class VideoTagsUpdate(BaseModel):
     video_tags: List[VideoTag]
 
 class VerifyCodeBody(BaseModel):
-    code: str
-
-class GitHubCallbackBody(BaseModel):
     code: str
 
 # --- V2 Structured Jobs + Bidding Models ---
@@ -359,7 +358,7 @@ def user_public(user: dict) -> dict:
         "role": user["role"],
         "email_verified": user.get("email_verified", False),
         "stripe_connect_onboarded": user.get("stripe_connect_onboarded", False),
-        "github_username": user.get("github_username"),
+        "public_slug": user.get("public_slug"),
         "onboarding_completed": user.get("onboarding_completed", False),
         "bio": user.get("bio", ""),
         "specialties": user.get("specialties", []),
@@ -485,9 +484,7 @@ async def register(body: UserRegister, response: Response):
         "email_verification_code_expires": (datetime.utcnow() + timedelta(minutes=10)).isoformat(),
         "email_verification_attempts": 0,
         "verification_last_sent": datetime.utcnow().isoformat(),
-        "github_username": None,
-        "github_access_token": None,
-        "github_connected_at": None,
+        "public_slug": f"tester_{uuid.uuid4().hex[:10]}",
         "onboarding_completed": False,
         "onboarding_completed_at": None,
         "stripe_customer_id": None,
@@ -582,10 +579,10 @@ async def get_me(email: str = Depends(verify_token)):
     result["created_at"] = user["created_at"]
     return result
 
-# --- Onboarding: Email Verification + GitHub OAuth ---
+# --- Onboarding: Email Verification ---
 
 def check_onboarding_complete(user: dict) -> bool:
-    return user.get("email_verified", False) and user.get("github_username") is not None
+    return user.get("email_verified", False)
 
 @app.post("/api/auth/verify-email-code")
 async def verify_email_code(body: VerifyCodeBody, email: str = Depends(verify_token)):
@@ -657,66 +654,6 @@ async def resend_verification_code(email: str = Depends(verify_token)):
         email_verification_code_html(user["first_name"], new_code),
     )
     return {"message": "New verification code sent"}
-
-@app.get("/api/auth/github-oauth-url")
-async def github_oauth_url(email: str = Depends(verify_token)):
-    if not GITHUB_CLIENT_ID:
-        raise HTTPException(status_code=500, detail="GitHub OAuth not configured")
-    params = (
-        f"client_id={GITHUB_CLIENT_ID}"
-        f"&redirect_uri={GITHUB_REDIRECT_URI}"
-        f"&scope=user:email,repo"
-        f"&state={email}"
-    )
-    return {"url": f"https://github.com/login/oauth/authorize?{params}"}
-
-@app.post("/api/auth/github-callback")
-async def github_callback(body: GitHubCallbackBody, email: str = Depends(verify_token)):
-    user = await get_user_or_404(email)
-    if user.get("github_username"):
-        return {"message": "GitHub already connected", "user": user_public(user)}
-
-    async with httpx.AsyncClient() as client:
-        token_resp = await client.post(
-            "https://github.com/login/oauth/access_token",
-            json={
-                "client_id": GITHUB_CLIENT_ID,
-                "client_secret": GITHUB_CLIENT_SECRET,
-                "code": body.code,
-                "redirect_uri": GITHUB_REDIRECT_URI,
-            },
-            headers={"Accept": "application/json"},
-        )
-        token_data = token_resp.json()
-
-    gh_access_token = token_data.get("access_token")
-    if not gh_access_token:
-        raise HTTPException(status_code=400, detail="Failed to authenticate with GitHub")
-
-    async with httpx.AsyncClient() as client:
-        user_resp = await client.get(
-            "https://api.github.com/user",
-            headers={"Authorization": f"Bearer {gh_access_token}", "Accept": "application/json"},
-        )
-        gh_user = user_resp.json()
-
-    gh_username = gh_user.get("login")
-    if not gh_username:
-        raise HTTPException(status_code=400, detail="Could not retrieve GitHub username")
-
-    update: dict = {
-        "github_username": gh_username,
-        "github_access_token": gh_access_token,
-        "github_connected_at": datetime.utcnow().isoformat(),
-    }
-    user["github_username"] = gh_username
-    if check_onboarding_complete(user):
-        update["onboarding_completed"] = True
-        update["onboarding_completed_at"] = datetime.utcnow().isoformat()
-        user["onboarding_completed"] = True
-
-    await users_col.update_one({"email": email}, {"$set": update})
-    return {"message": "GitHub connected", "user": user_public(user)}
 
 # --- Dashboard ---
 
@@ -900,6 +837,8 @@ async def create_job(body: JobCreate, email: str = Depends(verify_token)):
         "payout_amount": payout,
         "max_testers": body.max_testers,
         "estimated_time_minutes": body.estimated_time_minutes,
+        "test_url": body.test_url,
+        "test_credentials": body.test_credentials,
         "status": "pending_payment",
         "total_charge": total_charge,
         "platform_fee": platform_fee,
@@ -1141,6 +1080,7 @@ async def claim_job(job_id: str, email: str = Depends(verify_token)):
         "builder_rating": None,
         "video_url": None,
         "video_tags": [],
+        "screenshots": [],
         "created_at": datetime.utcnow().isoformat(),
         "submitted_at": None,
         "reviewed_at": None,
@@ -1192,7 +1132,7 @@ def get_scope_items(job: dict, bid: dict) -> list:
         return []
     return []
 
-def get_proposed_price_for_scope(job: dict, scope_role_id: str | None, scope_item_id: str | None) -> float:
+def get_proposed_price_for_scope(job: dict, scope_role_id: Optional[str], scope_item_id: Optional[str]) -> float:
     """Calculate proposed price for a bid scope."""
     assignment = job.get("assignment_type")
     roles = job.get("roles", [])
@@ -1482,6 +1422,7 @@ async def confirm_bid_payment(bid_id: str, email: str = Depends(verify_token)):
             "builder_rating": None,
             "video_url": None,
             "video_tags": [],
+            "screenshots": [],
             "created_at": datetime.utcnow().isoformat(),
             "submitted_at": None,
             "reviewed_at": None,
@@ -1726,9 +1667,9 @@ async def reject_submission(sub_id: str, action: ReviewAction, email: str = Depe
 
 # --- Tester Profiles ---
 
-@app.get("/api/testers/{github_username}")
-async def get_tester_profile(github_username: str):
-    user = await users_col.find_one({"github_username": github_username, "role": "tester"})
+@app.get("/api/testers/{slug}")
+async def get_tester_profile(slug: str):
+    user = await users_col.find_one({"public_slug": slug, "role": "tester"})
     if not user or not user.get("profile_visible", True):
         raise HTTPException(status_code=404, detail="Tester not found")
 
@@ -1754,7 +1695,7 @@ async def get_tester_profile(github_username: str):
     return {
         "first_name": user["first_name"],
         "last_name": user["last_name"],
-        "github_username": github_username,
+        "public_slug": slug,
         "bio": user.get("bio", ""),
         "specialties": user.get("specialties", []),
         "avg_rating": avg_rating,
@@ -1813,6 +1754,89 @@ async def upload_video(sub_id: str, file: UploadFile = File(...), email: str = D
     video_url = f"/uploads/{filename}"
     await submissions_col.update_one({"_id": sub_id}, {"$set": {"video_url": video_url}})
     return {"video_url": video_url}
+
+@app.post("/api/submissions/{sub_id}/upload-screenshot")
+async def upload_screenshot(sub_id: str, file: UploadFile = File(...), email: str = Depends(verify_token)):
+    user = await get_user_or_404(email)
+    if user["role"] != "tester":
+        raise HTTPException(status_code=403, detail="Only testers can upload screenshots")
+
+    doc = await submissions_col.find_one({"_id": sub_id, "tester_email": email})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if doc["status"] != "draft":
+        raise HTTPException(status_code=400, detail="Can only upload screenshots for draft submissions")
+
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid file type. Allowed: png, jpeg, webp")
+
+    ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "png"
+    filename = f"{sub_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    filepath = Path(UPLOAD_DIR) / "screenshots" / filename
+
+    size = 0
+    async with aiofiles.open(filepath, "wb") as f:
+        while chunk := await file.read(1024 * 1024):
+            size += len(chunk)
+            if size > MAX_SCREENSHOT_SIZE:
+                await f.close()
+                filepath.unlink(missing_ok=True)
+                raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+            await f.write(chunk)
+
+    screenshot_url = f"/uploads/screenshots/{filename}"
+    return {"screenshot_url": screenshot_url}
+
+@app.post("/api/submissions/{sub_id}/upload-rrweb")
+async def upload_rrweb(sub_id: str, request: Request, email: str = Depends(verify_token)):
+    user = await get_user_or_404(email)
+    if user["role"] != "tester":
+        raise HTTPException(status_code=403, detail="Only testers can upload session recordings")
+
+    doc = await submissions_col.find_one({"_id": sub_id, "tester_email": email})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if doc["status"] != "draft":
+        raise HTTPException(status_code=400, detail="Can only upload rrweb for draft submissions")
+
+    body = await request.body()
+    if len(body) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="rrweb recording too large (max 50MB)")
+
+    rrweb_dir = Path(UPLOAD_DIR) / "rrweb"
+    rrweb_dir.mkdir(exist_ok=True)
+    filename = f"{sub_id}_{uuid.uuid4().hex[:8]}.json.gz"
+    filepath = rrweb_dir / filename
+
+    async with aiofiles.open(filepath, "wb") as f:
+        await f.write(body)
+
+    rrweb_url = f"/uploads/rrweb/{filename}"
+    await submissions_col.update_one({"_id": sub_id}, {"$set": {"rrweb_recording_url": rrweb_url}})
+    return {"rrweb_recording_url": rrweb_url}
+
+@app.put("/api/submissions/{sub_id}/session-timing")
+async def update_session_timing(sub_id: str, request: Request, email: str = Depends(verify_token)):
+    user = await get_user_or_404(email)
+    if user["role"] != "tester":
+        raise HTTPException(status_code=403, detail="Only testers can update session timing")
+
+    doc = await submissions_col.find_one({"_id": sub_id, "tester_email": email})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    body = await request.json()
+    update = {}
+    if "session_started_at" in body:
+        update["session_started_at"] = body["session_started_at"]
+    if "session_ended_at" in body:
+        update["session_ended_at"] = body["session_ended_at"]
+    if "session_duration_seconds" in body:
+        update["session_duration_seconds"] = body["session_duration_seconds"]
+
+    if update:
+        await submissions_col.update_one({"_id": sub_id}, {"$set": update})
+    return {"message": "Session timing updated"}
 
 @app.put("/api/submissions/{sub_id}/video-tags")
 async def update_video_tags(sub_id: str, body: VideoTagsUpdate, email: str = Depends(verify_token)):

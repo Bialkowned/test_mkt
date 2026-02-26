@@ -4,20 +4,14 @@ import axios from 'axios'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null
 
 const SERVICE_TYPE_COLORS = {
   test: 'bg-blue-100 text-blue-700',
   record: 'bg-purple-100 text-purple-700',
   document: 'bg-emerald-100 text-emerald-700',
   voiceover: 'bg-amber-100 text-amber-700',
-}
-
-const BID_STATUS_COLORS = {
-  pending: 'bg-amber-100 text-amber-700',
-  accepted: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
-  withdrawn: 'bg-gray-100 text-gray-600',
 }
 
 function isV2Job(job) {
@@ -217,19 +211,22 @@ export default function Jobs({ user }) {
     }
 
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="px-6 lg:px-10 py-10 max-w-[1400px] mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">My Test Jobs</h1>
-          <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">My Test Jobs</h1>
+            <p className="text-gray-500 text-sm mt-1">Manage your test jobs and review submissions.</p>
+          </div>
+          <div className="flex items-center gap-2">
             <Link
               to="/jobs/create"
-              className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+              className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium transition-colors"
             >
               New Structured Job
             </Link>
             <button
               onClick={() => setShowForm(!showForm)}
-              className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+              className="px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm rounded-lg hover:border-gray-300 font-medium transition-colors"
             >
               {showForm ? 'Cancel' : 'Quick Job'}
             </button>
@@ -346,18 +343,22 @@ export default function Jobs({ user }) {
         )}
 
         {jobs.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-            <p className="text-gray-500 text-lg">No jobs yet. Create a project first, then add test jobs.</p>
-          </div>
+          <EmptyState
+            title="No jobs yet"
+            subtitle="Create a project first, then add test jobs to get feedback."
+          />
         ) : (
           <div className="space-y-8">
             {Object.entries(grouped).map(([status, items]) =>
               items.length > 0 && (
                 <div key={status}>
-                  <h2 className="text-lg font-semibold text-gray-700 mb-3">
-                    {groupLabels[status]} ({items.length})
-                  </h2>
-                  <div className="space-y-3">
+                  <div className="flex items-center gap-2 mb-4">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                      {groupLabels[status]}
+                    </h2>
+                    <span className="text-xs text-gray-300 tabular-nums">{items.length}</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {items.map((job) => (
                       <JobCard
                         key={job.id}
@@ -383,76 +384,85 @@ export default function Jobs({ user }) {
   const tabs = [
     { key: 'available', label: 'Available', count: available.length },
     { key: 'bids', label: 'My Bids', count: bids.length },
-    { key: 'claimed', label: 'My Claimed', count: claimed.length },
+    { key: 'claimed', label: 'Claimed', count: claimed.length },
   ]
 
+  const activeList = tab === 'available' ? available : tab === 'claimed' ? claimed : []
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Jobs</h1>
-
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
-
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
-        {tabs.map(({ key, label, count }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === key
-                ? 'border-primary-600 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {label} ({count})
-          </button>
-        ))}
+    <div className="px-6 lg:px-10 py-10 max-w-[1400px] mx-auto">
+      <div className="flex items-end justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Jobs</h1>
+          <p className="text-gray-400 text-sm mt-1">Browse open test jobs and submit bids on structured work.</p>
+        </div>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+          {tabs.map(({ key, label, count }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all ${
+                tab === key
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {label}
+              {count > 0 && <span className="ml-1 text-xs tabular-nums text-gray-400">{count}</span>}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg mb-6">{error}</div>}
 
       {tab === 'bids' ? (
         bids.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-            <p className="text-gray-500 text-lg">You haven't submitted any bids yet.</p>
-            <p className="text-gray-400 text-sm mt-2">Browse structured jobs and submit bids to get started.</p>
-          </div>
+          <EmptyState
+            title="No bids yet"
+            subtitle="Browse available jobs and place a bid on structured work to get started."
+          />
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {bids.map((bid) => (
               <BidCard key={bid.id} bid={bid} />
             ))}
           </div>
         )
+      ) : activeList.length === 0 ? (
+        <EmptyState
+          title={tab === 'available' ? 'No jobs available' : 'Nothing claimed yet'}
+          subtitle={tab === 'available' ? 'Check back soon — new jobs are posted regularly.' : 'Claim a quick job or bid on structured work to see it here.'}
+        />
       ) : (
-        <>
-          {(tab === 'available' ? available : claimed).length === 0 ? (
-            <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-              <p className="text-gray-500 text-lg">
-                {tab === 'available' ? 'No available jobs right now. Check back soon!' : "You haven't claimed any jobs yet."}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {(tab === 'available' ? available : claimed).map((job) => (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  role="tester"
-                  isClaimed={job.assigned_testers?.includes(user.email)}
-                  onClaim={() => handleClaim(job.id)}
-                />
-              ))}
-            </div>
-          )}
-        </>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {activeList.map((job) => (
+            <JobCard
+              key={job.id}
+              job={job}
+              role="tester"
+              isClaimed={job.assigned_testers?.includes(user.email)}
+              onClaim={() => handleClaim(job.id)}
+            />
+          ))}
+        </div>
       )}
     </div>
   )
 }
 
-const statusColors = {
-  pending_payment: 'bg-orange-100 text-orange-700',
-  open: 'bg-green-100 text-green-700',
-  in_progress: 'bg-amber-100 text-amber-700',
-  completed: 'bg-blue-100 text-blue-700',
+function EmptyState({ title, subtitle }) {
+  return (
+    <div className="py-16 text-center">
+      <div className="w-12 h-12 rounded-full bg-gray-100 mx-auto mb-4 flex items-center justify-center">
+        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0" />
+        </svg>
+      </div>
+      <p className="text-sm font-medium text-gray-900">{title}</p>
+      <p className="text-sm text-gray-400 mt-1 max-w-sm mx-auto">{subtitle}</p>
+    </div>
+  )
 }
 
 function JobCard({ job, role, isClaimed, onClaim, onCompletePayment }) {
@@ -460,100 +470,107 @@ function JobCard({ job, role, isClaimed, onClaim, onCompletePayment }) {
   const v2 = isV2Job(job)
   const v2Info = v2 ? getV2Info(job) : null
 
-  const card = (
-    <div className={`bg-white border border-gray-200 rounded-lg p-5 ${isPending ? '' : 'hover:shadow-md'} transition-shadow`}>
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-1">
-            <h3 className="text-lg font-semibold text-gray-900 truncate">{job.title}</h3>
-            <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusColors[job.status] || 'bg-gray-100 text-gray-600'}`}>
-              {v2 && job.status === 'open' ? 'accepting bids' : job.status.replace('_', ' ')}
-            </span>
-            {v2 && (
-              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">structured</span>
-            )}
-          </div>
-          {job.project_name && (
-            <p className="text-sm text-gray-500 mb-2">{job.project_name}</p>
-          )}
-          <p className="text-gray-600 text-sm line-clamp-1">{job.description}</p>
+  const timeLabel = job.estimated_time_minutes >= 60
+    ? `${Math.floor(job.estimated_time_minutes / 60)}h${job.estimated_time_minutes % 60 ? ` ${job.estimated_time_minutes % 60}m` : ''}`
+    : `${job.estimated_time_minutes}m`
 
-          {v2Info && (
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {v2Info.serviceTypes.map((st) => (
-                <span key={st} className={`text-xs font-medium px-2 py-0.5 rounded-full ${SERVICE_TYPE_COLORS[st] || 'bg-gray-100 text-gray-600'}`}>
-                  {st}
-                </span>
-              ))}
-            </div>
+  const slotsOpen = v2 ? null : (job.max_testers || 0) - (job.assigned_testers?.length || 0)
+
+  const card = (
+    <div className={`group bg-white rounded-xl border border-gray-200 flex flex-col h-full ${isPending ? 'opacity-60' : 'hover:border-gray-300 hover:shadow-sm'} transition-all`}>
+
+      {/* Header band */}
+      <div className={`px-4 py-2.5 rounded-t-xl flex items-center justify-between ${v2 ? 'bg-indigo-50' : 'bg-gray-50'}`}>
+        <div className="flex items-center gap-2 min-w-0">
+          {job.project_name && (
+            <span className="text-xs font-semibold text-gray-600 truncate">{job.project_name}</span>
           )}
         </div>
-        <div className="flex items-center gap-4 ml-4 shrink-0">
-          <div className="text-right">
-            {v2Info ? (
-              <>
-                <p className="text-lg font-bold text-gray-900">
-                  {v2Info.priceMin === v2Info.priceMax
-                    ? `$${v2Info.priceMin.toFixed(0)}`
-                    : `$${v2Info.priceMin.toFixed(0)}-$${v2Info.priceMax.toFixed(0)}`}
-                  <span className="text-xs font-normal text-gray-400">/item</span>
-                </p>
-                <p className="text-xs text-gray-500">
-                  {v2Info.roleCount} role{v2Info.roleCount !== 1 ? 's' : ''}, {v2Info.itemCount} item{v2Info.itemCount !== 1 ? 's' : ''}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-lg font-bold text-gray-900">${job.payout_amount}</p>
-                <p className="text-xs text-gray-500">{job.estimated_time_minutes} min</p>
-              </>
-            )}
+        <span className={`text-[11px] font-semibold uppercase tracking-wide shrink-0 ${v2 ? 'text-indigo-500' : 'text-gray-400'}`}>
+          {v2 ? job.assignment_type?.replace('_', ' ') : 'Quick'}
+        </span>
+      </div>
+
+      {/* Body */}
+      <div className="px-4 pt-3.5 pb-3 flex-1 flex flex-col">
+        <h3 className="text-[15px] font-semibold text-gray-900 leading-snug mb-2 group-hover:text-gray-700 transition-colors line-clamp-2">
+          {job.title}
+        </h3>
+        <p className="text-[13px] text-gray-400 leading-relaxed line-clamp-2 mb-auto">{job.description}</p>
+
+        {/* Tags row */}
+        {v2Info && v2Info.serviceTypes.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {v2Info.serviceTypes.map((st) => (
+              <span key={st} className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-px rounded ${SERVICE_TYPE_COLORS[st] || 'bg-gray-100 text-gray-600'}`}>
+                {st}
+              </span>
+            ))}
           </div>
-          {role === 'builder' && isPending && (
-            <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onCompletePayment() }}
-              className="px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 font-medium"
-            >
-              Complete Payment
-            </button>
-          )}
-          {role === 'tester' && !isClaimed && !v2 && (job.status === 'open' || job.status === 'in_progress') && (
-            <button
-              onClick={(e) => { e.preventDefault(); onClaim() }}
-              className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium"
-            >
-              Claim
-            </button>
-          )}
-          {role === 'tester' && !isClaimed && v2 && job.status === 'open' && (
-            <Link
-              to={`/jobs/${job.id}`}
-              onClick={(e) => e.stopPropagation()}
-              className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 font-medium"
-            >
-              View & Bid
-            </Link>
-          )}
-          {role === 'tester' && isClaimed && (
-            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary-50 text-primary-700">Claimed</span>
-          )}
+        )}
+      </div>
+
+      {/* Stats row */}
+      <div className="px-4 py-2.5 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
+        <div>
+          <p className="text-[11px] text-gray-400 uppercase tracking-wide">Pay</p>
+          <p className="text-sm font-bold text-gray-900 mt-0.5">
+            {v2Info
+              ? v2Info.priceMin === v2Info.priceMax
+                ? `$${v2Info.priceMin}`
+                : `$${v2Info.priceMin}\u2013${v2Info.priceMax}`
+              : `$${job.payout_amount}`
+            }
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] text-gray-400 uppercase tracking-wide">Time</p>
+          <p className="text-sm font-bold text-gray-900 mt-0.5">{timeLabel}</p>
+        </div>
+        <div>
+          <p className="text-[11px] text-gray-400 uppercase tracking-wide">{v2 ? 'Scope' : 'Slots'}</p>
+          <p className="text-sm font-bold text-gray-900 mt-0.5">
+            {v2Info
+              ? `${v2Info.roleCount}R / ${v2Info.itemCount}I`
+              : `${slotsOpen} open`
+            }
+          </p>
         </div>
       </div>
-      <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
-        {v2Info ? (
-          <>
-            <span>Total: ${v2Info.proposedTotal.toFixed(2)} proposed</span>
-            <span className="capitalize">{job.assignment_type?.replace('_', ' ')}</span>
-          </>
-        ) : (
-          <>
-            <span>{job.assigned_testers?.length || 0} / {job.max_testers} testers</span>
-            {role === 'builder' && job.total_charge > 0 && (
-              <span>Total: ${job.total_charge.toFixed(2)}</span>
-            )}
-          </>
+
+      {/* Action footer */}
+      <div className="px-4 py-3 border-t border-gray-100 rounded-b-xl">
+        {role === 'builder' && isPending && (
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onCompletePayment() }}
+            className="w-full text-center text-sm font-medium text-orange-600 hover:text-orange-700 transition-colors"
+          >
+            Complete payment &rarr;
+          </button>
         )}
-        <span>{new Date(job.created_at).toLocaleDateString()}</span>
+        {role === 'builder' && !isPending && (
+          <span className="block w-full text-center text-sm font-medium text-gray-400 group-hover:text-gray-900 transition-colors">
+            View details &rarr;
+          </span>
+        )}
+        {role === 'tester' && !isClaimed && !v2 && (job.status === 'open' || job.status === 'in_progress') && (
+          <button
+            onClick={(e) => { e.preventDefault(); onClaim() }}
+            className="w-full text-center px-4 py-1.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium transition-colors"
+          >
+            Claim slot
+          </button>
+        )}
+        {role === 'tester' && !isClaimed && v2 && job.status === 'open' && (
+          <span className="block w-full text-center text-sm font-medium text-indigo-600 group-hover:text-indigo-700 transition-colors">
+            View &amp; bid &rarr;
+          </span>
+        )}
+        {role === 'tester' && isClaimed && (
+          <span className="block w-full text-center text-sm font-semibold text-primary-600">
+            Continue &rarr;
+          </span>
+        )}
       </div>
     </div>
   )
@@ -561,46 +578,70 @@ function JobCard({ job, role, isClaimed, onClaim, onCompletePayment }) {
   if (isPending) return card
 
   return (
-    <Link to={`/jobs/${job.id}`} className="block">
+    <Link to={`/jobs/${job.id}`} className="block h-full">
       {card}
     </Link>
   )
 }
 
 function BidCard({ bid }) {
+  const statusBand = {
+    pending: 'bg-amber-50',
+    accepted: 'bg-emerald-50',
+    rejected: 'bg-red-50',
+    withdrawn: 'bg-gray-50',
+  }
+  const statusText = {
+    pending: 'text-amber-600',
+    accepted: 'text-emerald-600',
+    rejected: 'text-red-600',
+    withdrawn: 'text-gray-400',
+  }
+
   return (
-    <Link to={`/jobs/${bid.job_id}`} className="block">
-      <div className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-1">
-              <h3 className="text-lg font-semibold text-gray-900 truncate">{bid.job_title || 'Test Job'}</h3>
-              <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${BID_STATUS_COLORS[bid.status] || 'bg-gray-100 text-gray-600'}`}>
-                {bid.status}
-              </span>
-              {bid.is_counter && (
-                <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700">counter-offer</span>
-              )}
-            </div>
-            {bid.message && (
-              <p className="text-gray-500 text-sm line-clamp-1">{bid.message}</p>
-            )}
+    <Link to={`/jobs/${bid.job_id}`} className="block h-full group">
+      <div className="bg-white rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all flex flex-col h-full">
+        {/* Header */}
+        <div className={`px-4 py-2.5 rounded-t-xl flex items-center justify-between ${statusBand[bid.status] || 'bg-gray-50'}`}>
+          <span className={`text-[11px] font-bold uppercase tracking-wide ${statusText[bid.status] || 'text-gray-400'}`}>
+            {bid.status}
+          </span>
+          {bid.is_counter && (
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-purple-500">Counter</span>
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="px-4 pt-3.5 pb-3 flex-1">
+          <h3 className="text-[15px] font-semibold text-gray-900 leading-snug mb-1 group-hover:text-gray-700 transition-colors line-clamp-2">
+            {bid.job_title || 'Test Job'}
+          </h3>
+          {bid.message && (
+            <p className="text-[13px] text-gray-400 line-clamp-2">{bid.message}</p>
+          )}
+        </div>
+
+        {/* Stats */}
+        <div className="px-4 py-2.5 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
+          <div>
+            <p className="text-[11px] text-gray-400 uppercase tracking-wide">Bid</p>
+            <p className="text-sm font-bold text-gray-900 mt-0.5">${bid.bid_price?.toFixed(0)}</p>
           </div>
-          <div className="text-right ml-4 shrink-0">
-            <p className="text-lg font-bold text-gray-900">${bid.bid_price?.toFixed(2)}</p>
-            {bid.is_counter && bid.proposed_price != null && (
-              <p className="text-xs text-gray-400">
-                <span className="line-through">${bid.proposed_price?.toFixed(2)}</span> proposed
-              </p>
-            )}
+          <div>
+            <p className="text-[11px] text-gray-400 uppercase tracking-wide">Scope</p>
+            <p className="text-sm font-bold text-gray-900 mt-0.5 capitalize">{bid.scope_type?.replace('_', ' ') || '—'}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-gray-400 uppercase tracking-wide">Date</p>
+            <p className="text-sm font-bold text-gray-900 mt-0.5">{new Date(bid.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>
           </div>
         </div>
-        <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
-          <span className="capitalize">{bid.scope_type?.replace('_', ' ')}</span>
-          {bid.payment_status === 'paid' && (
-            <span className="text-green-600 font-medium">Paid</span>
-          )}
-          <span>{new Date(bid.created_at).toLocaleDateString()}</span>
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-gray-100 rounded-b-xl">
+          <span className="block w-full text-center text-sm font-medium text-gray-400 group-hover:text-gray-900 transition-colors">
+            View job &rarr;
+          </span>
         </div>
       </div>
     </Link>
