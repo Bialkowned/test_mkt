@@ -3,8 +3,8 @@ module.exports = {
     {
       name: 'testmkt-backend',
       cwd: '/home/user1/Production/3_community/8_Tester/backend',
-      script: '/home/user1/Production/3_community/8_Tester/backend/venv/bin/uvicorn',
-      args: 'main:app --host 0.0.0.0 --port 5108',
+      script: '/home/user1/Production/3_community/8_Tester/backend/venv/bin/python',
+      args: '-m uvicorn main:app --host 0.0.0.0 --port 5108',
       interpreter: 'none',
       env: {
         PYTHONPATH: '/home/user1/Production/3_community/8_Tester/backend',
