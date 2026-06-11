@@ -8,9 +8,9 @@ const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
 const stripePromise = stripeKey ? loadStripe(stripeKey) : null
 
 const SERVICE_TYPE_COLORS = {
-  test: 'bg-blue-100 text-blue-700',
+  test: 'bg-primary-100 text-primary-700',
   record: 'bg-purple-100 text-purple-700',
-  document: 'bg-emerald-100 text-emerald-700',
+  document: 'bg-primary-100 text-primary-700',
   voiceover: 'bg-amber-100 text-amber-700',
 }
 
@@ -587,13 +587,13 @@ function JobCard({ job, role, isClaimed, onClaim, onCompletePayment }) {
 function BidCard({ bid }) {
   const statusBand = {
     pending: 'bg-amber-50',
-    accepted: 'bg-emerald-50',
+    accepted: 'bg-primary-50',
     rejected: 'bg-red-50',
     withdrawn: 'bg-gray-50',
   }
   const statusText = {
     pending: 'text-amber-600',
-    accepted: 'text-emerald-600',
+    accepted: 'text-primary-600',
     rejected: 'text-red-600',
     withdrawn: 'text-gray-400',
   }

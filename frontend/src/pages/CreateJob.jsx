@@ -3,9 +3,9 @@ import { useNavigate, Link } from 'react-router-dom'
 import axios from 'axios'
 
 const SERVICE_TYPES = [
-  { id: 'test', name: 'Test', color: 'bg-blue-100 text-blue-700 border-blue-200', desc: 'Text feedback + bug reports + usability score' },
+  { id: 'test', name: 'Test', color: 'bg-primary-100 text-primary-700 border-primary-200', desc: 'Text feedback + bug reports + usability score' },
   { id: 'record', name: 'Record', color: 'bg-red-100 text-red-700 border-red-200', desc: 'Screen recording + video tags + feedback' },
-  { id: 'document', name: 'Document', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', desc: 'Structured step-by-step documentation' },
+  { id: 'document', name: 'Document', color: 'bg-primary-100 text-primary-700 border-primary-200', desc: 'Structured step-by-step documentation' },
   { id: 'voiceover', name: 'Voiceover', color: 'bg-purple-100 text-purple-700 border-purple-200', desc: 'Narrated screen recording with commentary' },
 ]
 

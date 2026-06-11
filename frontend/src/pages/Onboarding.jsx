@@ -58,7 +58,7 @@ export default function Onboarding({ user, setUser }) {
             />
 
             {error && <p className="mt-3 text-sm text-red-600 text-center">{error}</p>}
-            {resendMsg && <p className="mt-3 text-sm text-green-600 text-center">{resendMsg}</p>}
+            {resendMsg && <p className="mt-3 text-sm text-primary-600 text-center">{resendMsg}</p>}
 
             <button
               type="submit"

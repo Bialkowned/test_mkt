@@ -9,9 +9,9 @@ const SERVICE_TYPES = [
     name: 'Test',
     desc: 'Walk through the user journey, report bugs, provide text feedback and a usability score.',
     range: '$10 — $50 / item',
-    color: 'border-blue-200 bg-blue-50',
-    pill: 'bg-blue-100 text-blue-700 border-blue-200',
-    iconColor: 'bg-blue-600',
+    color: 'border-primary-200 bg-primary-50',
+    pill: 'bg-primary-100 text-primary-700 border-primary-200',
+    iconColor: 'bg-primary-600',
     icon: (
       <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
     ),
@@ -35,9 +35,9 @@ const SERVICE_TYPES = [
     name: 'Document',
     desc: 'Write structured, step-by-step documentation of the user journey with screenshots and notes.',
     range: '$25 — $100 / item',
-    color: 'border-emerald-200 bg-emerald-50',
-    pill: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    iconColor: 'bg-emerald-600',
+    color: 'border-primary-200 bg-primary-50',
+    pill: 'bg-primary-100 text-primary-700 border-primary-200',
+    iconColor: 'bg-primary-600',
     icon: (
       <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
     ),
@@ -48,9 +48,9 @@ const SERVICE_TYPES = [
     name: 'Voiceover',
     desc: 'Narrated screen recording — the tester talks through their experience in real time as they use your app.',
     range: '$30 — $125 / item',
-    color: 'border-purple-200 bg-purple-50',
-    pill: 'bg-purple-100 text-purple-700 border-purple-200',
-    iconColor: 'bg-purple-600',
+    color: 'border-primary-200 bg-primary-50',
+    pill: 'bg-primary-100 text-primary-700 border-primary-200',
+    iconColor: 'bg-primary-600',
     icon: (
       <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>
     ),
@@ -155,7 +155,7 @@ export default function Pricing({ user }) {
                     <div className="space-y-1">
                       {st.deliverables.map((d, i) => (
                         <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
-                          <svg className="w-3.5 h-3.5 text-green-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                          <svg className="w-3.5 h-3.5 text-primary-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                           {d}
                         </div>
                       ))}

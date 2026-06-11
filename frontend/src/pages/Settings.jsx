@@ -155,7 +155,7 @@ export default function Settings({ user }) {
         </div>
       )}
       {profileSuccess && (
-        <div className="mb-6 flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-lg">
+        <div className="mb-6 flex items-center gap-2 bg-primary-50 border border-primary-200 text-primary-700 text-sm px-4 py-3 rounded-lg">
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           {profileSuccess}
         </div>
@@ -314,8 +314,8 @@ export default function Settings({ user }) {
                 <div className="px-5 py-5">
                   {connectStatus.onboarded ? (
                     <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-emerald-600" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                      <div className="w-9 h-9 bg-primary-100 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-primary-600" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Connected</p>
@@ -391,7 +391,7 @@ export default function Settings({ user }) {
                       <p className="text-sm font-medium text-gray-900 mt-0.5">{user.email}</p>
                     </div>
                     {user.email_verified ? (
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Verified</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-600 bg-primary-50 px-2 py-0.5 rounded">Verified</span>
                     ) : (
                       <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Unverified</span>
                     )}
@@ -421,7 +421,7 @@ export default function Settings({ user }) {
                 </div>
                 <div className="px-5 py-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <div className="w-2 h-2 rounded-full bg-primary-500" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">Current session</p>
                       <p className="text-xs text-gray-400">Active now</p>

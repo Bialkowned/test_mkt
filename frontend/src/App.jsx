@@ -43,7 +43,7 @@ function ChatBubble() {
           </div>
           <div className="px-5 py-4">
             {sent ? (
-              <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-3">
+              <div className="bg-primary-50 border border-primary-200 text-primary-700 text-sm rounded-lg px-4 py-3">
                 Message sent! We'll get back to you soon.
               </div>
             ) : (

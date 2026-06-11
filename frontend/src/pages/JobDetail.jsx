@@ -21,14 +21,14 @@ const severityColors = {
 const TAG_COLORS = {
   'bug': 'bg-red-100 text-red-700 border-red-200',
   'ux-issue': 'bg-amber-100 text-amber-700 border-amber-200',
-  'training-clip': 'bg-blue-100 text-blue-700 border-blue-200',
-  'marketing-clip': 'bg-green-100 text-green-700 border-green-200',
+  'training-clip': 'bg-primary-100 text-primary-700 border-primary-200',
+  'marketing-clip': 'bg-primary-100 text-primary-700 border-primary-200',
 }
 
 const SERVICE_COLORS = {
-  test: 'bg-blue-100 text-blue-700',
+  test: 'bg-primary-100 text-primary-700',
   record: 'bg-red-100 text-red-700',
-  document: 'bg-emerald-100 text-emerald-700',
+  document: 'bg-primary-100 text-primary-700',
   voiceover: 'bg-purple-100 text-purple-700',
 }
 
@@ -141,9 +141,9 @@ export default function JobDetail({ user }) {
 
   const statusColors = {
     pending_payment: 'bg-orange-100 text-orange-700',
-    open: 'bg-green-100 text-green-700',
+    open: 'bg-primary-100 text-primary-700',
     in_progress: 'bg-amber-100 text-amber-700',
-    completed: 'bg-blue-100 text-blue-700',
+    completed: 'bg-primary-100 text-primary-700',
   }
 
   if (isV2) {
@@ -426,7 +426,7 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
                             <span className="font-medium text-gray-900">${item.proposed_price.toFixed(2)}</span>
                             {itemSubs.length > 0 && (
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                itemStatus === 'approved' ? 'bg-green-100 text-green-700' :
+                                itemStatus === 'approved' ? 'bg-primary-100 text-primary-700' :
                                 itemStatus === 'submitted' ? 'bg-amber-100 text-amber-700' :
                                 itemStatus === 'draft' ? 'bg-gray-100 text-gray-600' :
                                 'bg-gray-100 text-gray-600'
@@ -477,7 +477,7 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
                 <div className="flex items-center gap-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                     bid.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                    bid.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                    bid.status === 'accepted' ? 'bg-primary-100 text-primary-700' :
                     bid.status === 'rejected' ? 'bg-red-100 text-red-700' :
                     'bg-gray-100 text-gray-600'
                   }`}>
@@ -527,7 +527,7 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
                       <span className="font-medium text-gray-900">{bid.tester_name}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         bid.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                        bid.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                        bid.status === 'accepted' ? 'bg-primary-100 text-primary-700' :
                         bid.status === 'rejected' ? 'bg-red-100 text-red-700' :
                         'bg-gray-100 text-gray-600'
                       }`}>
@@ -546,7 +546,7 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
                     <div className="flex gap-2 shrink-0">
                       <button
                         onClick={() => handleAcceptBid(bid)}
-                        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 font-medium"
+                        className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium"
                       >
                         Accept
                       </button>
@@ -559,7 +559,7 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
                     </div>
                   )}
                   {bid.status === 'accepted' && bid.payment_status === 'paid' && (
-                    <span className="text-xs text-green-600 font-medium">Paid</span>
+                    <span className="text-xs text-primary-600 font-medium">Paid</span>
                   )}
                 </div>
               </div>
@@ -836,7 +836,7 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
   const subStatusColors = {
     draft: 'bg-gray-100 text-gray-600',
     submitted: 'bg-amber-100 text-amber-700',
-    approved: 'bg-green-100 text-green-700',
+    approved: 'bg-primary-100 text-primary-700',
     rejected: 'bg-red-100 text-red-700',
   }
 
@@ -955,7 +955,7 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
       </div>
 
       {submission.review_feedback && (
-        <div className={`mb-4 border rounded-lg p-3 text-sm ${submission.status === 'approved' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+        <div className={`mb-4 border rounded-lg p-3 text-sm ${submission.status === 'approved' ? 'bg-primary-50 border-primary-200' : 'bg-red-50 border-red-200'}`}>
           <p className="font-medium text-sm mb-0.5">{submission.status === 'approved' ? 'Approved' : 'Rejected'}</p>
           <p className="text-gray-700">{submission.review_feedback}</p>
         </div>
@@ -1296,7 +1296,7 @@ function BuilderSubmissionCard({ submission, onUpdate, setError }) {
   const subStatusColors = {
     draft: 'bg-gray-100 text-gray-600',
     submitted: 'bg-amber-100 text-amber-700',
-    approved: 'bg-green-100 text-green-700',
+    approved: 'bg-primary-100 text-primary-700',
     rejected: 'bg-red-100 text-red-700',
   }
 
@@ -1455,7 +1455,7 @@ function BuilderSubmissionCard({ submission, onUpdate, setError }) {
               </div>
 
               <div className="flex items-start gap-3">
-                <button onClick={handleApprove} disabled={processing} className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 font-medium disabled:opacity-50">Approve</button>
+                <button onClick={handleApprove} disabled={processing} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">Approve</button>
                 {!showReject ? (
                   <button onClick={() => setShowReject(true)} className="px-4 py-2 bg-white border border-red-300 text-red-600 text-sm rounded-lg hover:bg-red-50 font-medium">Reject</button>
                 ) : (
@@ -1635,7 +1635,7 @@ function TesterSubmission({ submission, onUpdate, setError }) {
       <h2 className="text-xl font-bold text-gray-900 mb-4">{isEditable ? 'Your Feedback' : 'Your Submission'}</h2>
 
       {submission.review_feedback && (
-        <div className={`mb-6 border rounded-lg p-4 ${submission.status === 'approved' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+        <div className={`mb-6 border rounded-lg p-4 ${submission.status === 'approved' ? 'bg-primary-50 border-primary-200' : 'bg-red-50 border-red-200'}`}>
           <p className="text-sm font-medium mb-1">{submission.status === 'approved' ? 'Approved' : 'Rejected'} by builder</p>
           {submission.review_feedback && <p className="text-sm text-gray-700">{submission.review_feedback}</p>}
         </div>
@@ -1667,7 +1667,7 @@ function TesterSubmission({ submission, onUpdate, setError }) {
               ) : videoUrl ? (
                 <div>
                   <video src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '360px' }} />
-                  <p className="text-xs text-green-600 mt-2 font-medium">Video uploaded successfully</p>
+                  <p className="text-xs text-primary-600 mt-2 font-medium">Video uploaded successfully</p>
                 </div>
               ) : recordingState === 'idle' ? (
                 <button type="button" onClick={startRecording} className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium">

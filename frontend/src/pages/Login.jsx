@@ -156,7 +156,7 @@ export default function Login({ setUser }) {
                   }}
                   className="flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors text-left"
                 >
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${acct.role === 'builder' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${acct.role === 'builder' ? 'bg-primary-100 text-primary-700' : 'bg-primary-100 text-primary-700'}`}>
                     {acct.name.split(' ').map(n => n[0]).join('')}
                   </div>
                   <div className="min-w-0">

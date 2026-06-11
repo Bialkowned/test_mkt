@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 
 const SERVICE_TYPE_COLORS = {
-  test: 'bg-blue-100 text-blue-700',
-  record: 'bg-purple-100 text-purple-700',
-  document: 'bg-emerald-100 text-emerald-700',
+  test: 'bg-primary-100 text-primary-700',
+  record: 'bg-primary-100 text-primary-700',
+  document: 'bg-primary-100 text-primary-700',
   voiceover: 'bg-amber-100 text-amber-700',
 }
 
@@ -79,7 +79,7 @@ export default function Home({ user }) {
                 <div className="flex items-center gap-1.5 px-4 py-3 bg-gray-800 border-b border-gray-700">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
                   <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/70" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-green-500/70" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-primary-500/70" />
                   <span className="ml-3 text-xs text-gray-500 bg-gray-700/50 px-3 py-0.5 rounded">peertesthub.com/dashboard</span>
                 </div>
                 <div className="p-5 space-y-4">
@@ -88,7 +88,7 @@ export default function Home({ user }) {
                     {[
                       { label: 'Active Jobs', val: '4', color: 'text-primary-400' },
                       { label: 'Pending Reviews', val: '2', color: 'text-amber-400' },
-                      { label: 'Completed', val: '12', color: 'text-green-400' },
+                      { label: 'Completed', val: '12', color: 'text-primary-400' },
                     ].map((s) => (
                       <div key={s.label} className="bg-gray-700/50 rounded-lg p-3">
                         <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
@@ -99,7 +99,7 @@ export default function Home({ user }) {
                   {/* Fake submission rows */}
                   <div className="space-y-2">
                     {[
-                      { name: 'Sarah K.', status: 'approved', statusColor: 'bg-green-500/20 text-green-400' },
+                      { name: 'Sarah K.', status: 'approved', statusColor: 'bg-primary-500/20 text-primary-400' },
                       { name: 'Marcus T.', status: 'submitted', statusColor: 'bg-amber-500/20 text-amber-400' },
                       { name: 'Priya M.', status: 'in progress', statusColor: 'bg-primary-500/20 text-primary-400' },
                     ].map((row) => (
@@ -230,7 +230,7 @@ export default function Home({ user }) {
                         to={`/jobs/${job.id}`}
                         className={`text-center px-4 py-2 text-white text-sm rounded-lg font-medium ${
                           isV2
-                            ? 'bg-indigo-600 hover:bg-indigo-700'
+                            ? 'bg-primary-600 hover:bg-primary-700'
                             : 'bg-primary-600 hover:bg-primary-700'
                         }`}
                       >
@@ -345,7 +345,7 @@ export default function Home({ user }) {
                 </div>
               </div>
               <div className="flex gap-4">
-                <div className="w-10 h-10 rounded-lg bg-green-600 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-lg bg-primary-600 flex items-center justify-center shrink-0">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
                 </div>
                 <div>
@@ -397,23 +397,23 @@ export default function Home({ user }) {
             </div>
 
             <div className="bg-gray-900 rounded-xl p-8 text-white">
-              <p className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-3">For Testers</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-primary-400 mb-3">For Testers</p>
               <h3 className="text-xl font-bold mb-5">Get paid to test real apps</h3>
               <ul className="space-y-4 text-sm text-gray-400">
                 <li className="flex gap-3">
-                  <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">1</span>
+                  <span className="w-6 h-6 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center text-xs font-bold shrink-0">1</span>
                   <span><strong className="text-white">Browse available jobs</strong> — see what apps need testing, payout amounts, and time estimates.</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">2</span>
+                  <span className="w-6 h-6 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center text-xs font-bold shrink-0">2</span>
                   <span><strong className="text-white">Claim a job</strong> — reserve your spot. Each job has limited tester slots.</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">3</span>
+                  <span className="w-6 h-6 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center text-xs font-bold shrink-0">3</span>
                   <span><strong className="text-white">Test and report</strong> — follow the builder's instructions, write feedback, log bugs, rate usability.</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">4</span>
+                  <span className="w-6 h-6 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center text-xs font-bold shrink-0">4</span>
                   <span><strong className="text-white">Get paid on approval</strong> — the builder approves, you earn the full listed payout.</span>
                 </li>
               </ul>
