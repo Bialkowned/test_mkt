@@ -99,3 +99,6 @@ uploads/
 *.tmp
 *.temp
 .cache/
+
+*.bak
+*.orig
