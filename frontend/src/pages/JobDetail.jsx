@@ -1078,7 +1078,7 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
                   )}
                   {recordingState === 'recorded' && (
                     <div className="space-y-3">
-                      <video src={recordedUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
+                      <video src={recordedUrl} controls className="w-full rounded-lg bg-black max-h-[300px]" />
                       <div className="flex gap-2">
                         <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload'}</button>
                         <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm">Discard</button>
@@ -1090,7 +1090,7 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
               {videoUrl && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
-                  <video src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
+                  <video src={videoUrl} controls className="w-full rounded-lg bg-black max-h-[300px]" />
                 </div>
               )}
               <div>
@@ -1134,7 +1134,7 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
                   )}
                   {recordingState === 'recorded' && (
                     <div className="space-y-3">
-                      <video src={recordedUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
+                      <video src={recordedUrl} controls className="w-full rounded-lg bg-black max-h-[300px]" />
                       <div className="flex gap-2">
                         <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload'}</button>
                         <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm">Discard</button>
@@ -1146,7 +1146,7 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
               {videoUrl && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Narrated Recording</label>
-                  <video src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '300px' }} />
+                  <video src={videoUrl} controls className="w-full rounded-lg bg-black max-h-[300px]" />
                 </div>
               )}
               <div>
@@ -1323,7 +1323,7 @@ function BuilderSubmissionCard({ submission, onUpdate, setError }) {
           {submission.video_url && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-500 mb-2">Screen Recording</label>
-              <video ref={videoRef} src={submission.video_url} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '400px' }} />
+              <video ref={videoRef} src={submission.video_url} controls className="w-full rounded-lg bg-black max-h-[400px]" />
             </div>
           )}
 
@@ -1666,7 +1666,7 @@ function TesterSubmission({ submission, onUpdate, setError }) {
                 <p className="text-sm text-gray-400">Screen recording is not supported in this browser.</p>
               ) : videoUrl ? (
                 <div>
-                  <video src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '360px' }} />
+                  <video src={videoUrl} controls className="w-full rounded-lg bg-black max-h-[360px]" />
                   <p className="text-xs text-primary-600 mt-2 font-medium">Video uploaded successfully</p>
                 </div>
               ) : recordingState === 'idle' ? (
@@ -1680,7 +1680,7 @@ function TesterSubmission({ submission, onUpdate, setError }) {
                 </div>
               ) : recordingState === 'recorded' ? (
                 <div className="space-y-3">
-                  <video src={recordedUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '360px' }} />
+                  <video src={recordedUrl} controls className="w-full rounded-lg bg-black max-h-[360px]" />
                   <div className="flex gap-2">
                     <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload Recording'}</button>
                     <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Discard</button>
@@ -1693,7 +1693,7 @@ function TesterSubmission({ submission, onUpdate, setError }) {
           {!isEditable && videoUrl && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
-              <video ref={videoRef} src={videoUrl} controls className="w-full rounded-lg bg-black" style={{ maxHeight: '360px' }} />
+              <video ref={videoRef} src={videoUrl} controls className="w-full rounded-lg bg-black max-h-[360px]" />
             </div>
           )}
 

@@ -345,7 +345,7 @@ export default function ScreenshotAnnotator({ isOpen, onClose, onComplete, submi
             </div>
 
             {/* Canvas */}
-            <div className="flex-1 overflow-auto flex items-center justify-center bg-gray-100 p-4 relative" style={{ minHeight: '300px' }}>
+            <div className="flex-1 overflow-auto flex items-center justify-center bg-gray-100 p-4 relative min-h-[300px]">
               <Stage
                 ref={stageRef}
                 width={imageDims.w}
