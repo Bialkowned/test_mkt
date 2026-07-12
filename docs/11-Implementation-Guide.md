@@ -38,9 +38,8 @@ This comprehensive guide walks through the step-by-step process of building Peer
 - Git 2.30+
 - Node.js 18+ and npm/yarn
 - Python 3.11+
-- MongoDB 5.0+
-- Redis 7.0+
-- Docker & Docker Compose
+- MongoDB 5.0+ (native, listening on 127.0.0.1:27017)
+- Redis 7.0+ (native)
 - VS Code or preferred IDE
 ```
 
@@ -52,7 +51,7 @@ git clone https://github.com/yourusername/peertest-hub.git
 cd peertest-hub
 
 # Create project structure
-mkdir -p backend frontend docs docker
+mkdir -p backend frontend docs
 
 # Initialize git
 git init
@@ -147,18 +146,11 @@ EOL
 ### 1.5 Database Setup
 
 ```bash
-# Start MongoDB (using Docker)
-docker run -d \
-  --name peertest-mongo \
-  -p 27017:27017 \
-  -v peertest-mongo-data:/data/db \
-  mongo:5.0
+# Start MongoDB (native mongod on 127.0.0.1:27017)
+sudo systemctl start mongod
 
-# Start Redis
-docker run -d \
-  --name peertest-redis \
-  -p 6379:6379 \
-  redis:7-alpine
+# Start Redis (native)
+sudo systemctl start redis
 
 # Verify connections
 mongosh mongodb://localhost:27017
@@ -993,7 +985,7 @@ async def health_check():
 **Issue: MongoDB connection fails**
 ```bash
 # Check if MongoDB is running
-docker ps | grep mongo
+systemctl status mongod   # or: pgrep -a mongod
 
 # Check connection string
 echo $MONGODB_URL

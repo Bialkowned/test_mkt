@@ -489,7 +489,6 @@ Frontend:
 • Tailwind CSS
 
 Infrastructure:
-• Docker containers
 • AWS/DigitalOcean
 • CloudFlare CDN
 • GitHub Actions CI/CD

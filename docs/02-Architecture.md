@@ -556,81 +556,62 @@ Builder → Admin → FastAPI → MongoDB → Stripe
 
 ## 6. Deployment Architecture
 
-### 6.1 Development Environment (Docker Compose)
+### 6.1 Development Environment (pm2 + native services)
 
-**Services:**
+**Processes / services:**
 1. `frontend` - React dev server (Vite, port 5173)
 2. `backend` - FastAPI (Uvicorn, port 8000)
-3. `mongodb` - MongoDB (port 27017)
-4. `redis` - Redis (port 6379)
+3. `mongodb` - native mongod on 127.0.0.1:27017
+4. `redis` - native Redis on 127.0.0.1:6379
 5. `celery` - Background worker
 6. `mailhog` - Email testing (SMTP server, port 1025, web UI on 8025)
 
-**Docker Compose File:**
-```yaml
-version: '3.8'
-services:
-  frontend:
-    build: ./frontend
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-    environment:
-      - VITE_API_URL=http://localhost:8000
+MongoDB and Redis run natively on the host. The app processes (backend,
+frontend, celery worker) run under pm2, each pointed at the native services
+via environment variables.
 
-  backend:
-    build: ./backend
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-    environment:
-      - MONGO_URI=mongodb://mongodb:27017/peertesthub
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=dev-secret
-      - STRIPE_SECRET_KEY=sk_test_...
-    depends_on:
-      - mongodb
-      - redis
-
-  mongodb:
-    image: mongo:6
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-  celery:
-    build: ./backend
-    command: celery -A app.celery worker --loglevel=info
-    environment:
-      - MONGO_URI=mongodb://mongodb:27017/peertesthub
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-      - mongodb
-
-  mailhog:
-    image: mailhog/mailhog
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-
-volumes:
-  mongo_data:
+**pm2 ecosystem (ecosystem.config.js):**
+```javascript
+module.exports = {
+  apps: [
+    {
+      name: 'peertesthub-backend',
+      cwd: './backend',
+      script: 'uvicorn',
+      args: 'app.main:app --host 0.0.0.0 --port 8000',
+      env: {
+        MONGO_URI: 'mongodb://127.0.0.1:27017/peertesthub',
+        REDIS_URL: 'redis://127.0.0.1:6379',
+        JWT_SECRET: 'dev-secret',
+        STRIPE_SECRET_KEY: 'sk_test_...'
+      }
+    },
+    {
+      name: 'peertesthub-frontend',
+      cwd: './frontend',
+      script: 'npm',
+      args: 'run dev',
+      env: { VITE_API_URL: 'http://localhost:8000' }
+    },
+    {
+      name: 'peertesthub-worker',
+      cwd: './backend',
+      script: 'celery',
+      args: '-A app.celery worker --loglevel=info',
+      env: {
+        MONGO_URI: 'mongodb://127.0.0.1:27017/peertesthub',
+        REDIS_URL: 'redis://127.0.0.1:6379'
+      }
+    }
+  ]
+};
 ```
 
 ### 6.2 Production Environment (Linux Server)
 
 **Option 1: Single Server (MVP)**
 - **Server:** Ubuntu 22.04 LTS, 4 CPU, 8GB RAM
-- **Deployment:** Docker Compose with production configs
+- **Deployment:** pm2 with a production ecosystem config
 - **Reverse Proxy:** Nginx (SSL via Let's Encrypt)
 - **Monitoring:** Uptime monitoring (UptimeRobot or similar)
 - **Backups:** MongoDB daily backup to S3
@@ -644,9 +625,9 @@ volumes:
 - **Monitoring:** DataDog or New Relic
 
 **CI/CD:**
-- **GitHub Actions:** Run tests, build Docker images
-- **Deployment:** Push to Docker Hub, SSH to server, pull and restart containers
-- **Zero-Downtime:** Rolling updates (docker-compose up -d --no-deps)
+- **GitHub Actions:** Run tests, build frontend assets
+- **Deployment:** SSH to server, pull latest code, and reload pm2 processes
+- **Zero-Downtime:** Rolling reloads (`pm2 reload`)
 
 ### 6.3 Nginx Configuration (Production)
 
@@ -698,7 +679,7 @@ server {
 **Backend Logs:**
 - Structured logging (JSON format)
 - Log levels: DEBUG (dev), INFO (prod), ERROR
-- Log to stdout (Docker captures logs)
+- Log to stdout (pm2 captures logs)
 
 **What to log:**
 - API requests (method, path, status, duration)
@@ -708,7 +689,7 @@ server {
 - Payment transactions
 
 **Log Aggregation:**
-- (MVP) Docker logs + `docker-compose logs`
+- (MVP) pm2 logs (`pm2 logs`)
 - (V1) Centralized logging (AWS CloudWatch, Logtail, or self-hosted Loki)
 
 ### 7.2 Metrics
@@ -805,7 +786,7 @@ server {
 
 **New Components:**
 1. **GitHub OAuth Service:** Handle OAuth flow, store access tokens
-2. **Build Service:** Trigger Docker builds for repos
+2. **Build Service:** Trigger sandboxed builds for repos
 3. **Sandbox Manager:** Manage isolated preview environments
 
 **Architecture:**
@@ -816,17 +797,17 @@ Builder → Frontend → FastAPI → GitHub OAuth
 3. GitHub redirects back with code
 4. FastAPI exchanges code for access token (stored encrypted)
 
-Builder → Frontend → FastAPI → Build Service → Docker
+Builder → Frontend → FastAPI → Build Service → Sandbox
 1. Builder selects repo + branch
-2. FastAPI fetches repo metadata (README, Dockerfile)
-3. Build Service clones repo in isolated container
-4. Build Service runs docker build (with timeout, resource limits)
+2. FastAPI fetches repo metadata (README, build config)
+3. Build Service clones repo in an isolated sandbox
+4. Build Service runs the sandboxed build (with timeout, resource limits)
 5. Build Service exposes preview URL (e.g., https://preview-abc123.peertesthub.com)
 6. Tester accesses preview URL (instead of iframe)
 ```
 
 **Security:**
-- Sandboxed builds (Docker-in-Docker with resource limits)
+- Sandboxed builds (isolated build sandboxes with resource limits)
 - Network isolation (no outbound connections except whitelisted APIs)
 - Timeout: 5 minutes for build, 1 hour for preview lifetime
 - Auto-delete preview after job completion

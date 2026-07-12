@@ -30,7 +30,6 @@ git pull origin copilot/build-out-program
 You'll get:
 - ✅ **Working backend** (`backend/main.py` - 400+ lines)
 - ✅ **Working frontend** (`frontend/src/` - 800+ lines)
-- ✅ **Docker setup** (`docker-compose.yml`)
 - ✅ **Instructions** (`README_CODE.md`)
 - ✅ All documentation from before
 
@@ -120,7 +119,6 @@ test_mkt/
 │   ├── package.json
 │   └── vite.config.js
 ├── docs/                    # Specifications (still there)
-├── docker-compose.yml       # ✅ Docker setup
 └── README_CODE.md           # ✅ How to run
 ```
 ✅ **REAL WORKING CODE**
@@ -173,7 +171,7 @@ git pull origin copilot/build-out-program
 
 # Check what you have
 ls -la
-# You should see: backend/, frontend/, docs/, docker-compose.yml
+# You should see: backend/, frontend/, docs/
 
 # Read the instructions
 cat README_CODE.md

@@ -343,7 +343,7 @@ Create a specialized marketplace where:
 #### FR-V1-1: GitHub Integration
 - FR-V1-1.1: GitHub OAuth connection
 - FR-V1-1.2: Pull repo metadata (README, commits, branches)
-- FR-V1-1.3: Trigger sandbox build (Docker-based, isolated)
+- FR-V1-1.3: Trigger sandbox build (isolated)
 - FR-V1-1.4: Generate preview URL for testers
 - FR-V1-1.5: Security: sandbox timeout, resource limits, network restrictions
 
@@ -575,7 +575,7 @@ Create a specialized marketplace where:
 
 **Mitigations:**
 - **Phase approach:** MVP uses hosted URL only; V1 adds GitHub
-- **Strict sandboxing:** Docker containers, resource limits, network isolation, timeouts
+- **Strict sandboxing:** isolated build sandboxes, resource limits, network isolation, timeouts
 - **Allowlist approach:** Start with static sites (React, Vue, Next.js) before backend apps
 - **Clear documentation:** Builder must provide build instructions
 - **Fail gracefully:** If build fails, fall back to manual hosted URL

@@ -36,13 +36,6 @@ npm run dev
 # App running at http://localhost:5173
 ```
 
-### Option 2: Run with Docker (Production-like)
-
-```bash
-# Coming soon - Docker Compose setup
-docker-compose up
-```
-
 ---
 
 ## 📸 What It Looks Like
@@ -111,7 +104,6 @@ test_mkt/
 ├── docs/                    # Documentation (from previous session)
 │   └── (13 comprehensive spec files)
 │
-├── docker-compose.yml       # Docker setup
 └── README.md                # This file
 ```
 

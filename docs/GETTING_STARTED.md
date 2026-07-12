@@ -13,7 +13,7 @@ We have created **comprehensive planning and documentation** for the PeerTest Hu
 - **Payment System Design** (Stripe integration)
 - **Business Plan** (market analysis, pricing, projections)
 - **Implementation Guide** (8-12 week development roadmap)
-- **Deployment Guide** (Docker setup, CI/CD)
+- **Deployment Guide** (pm2 setup, CI/CD)
 - **Pitch Deck** (investor presentation)
 
 **Total:** 13 comprehensive documents, 13,619 lines, 388KB of specifications
@@ -24,7 +24,6 @@ The actual platform **has NOT been built yet**. There is no:
 - ❌ React frontend application
 - ❌ FastAPI backend server
 - ❌ MongoDB database
-- ❌ Docker containers
 - ❌ Running application
 
 **The documentation is the blueprint. You need to build the actual platform.**
@@ -114,19 +113,18 @@ You have **three main options** depending on your goals:
    **Prerequisites:**
    - Node.js 18+ (for React frontend)
    - Python 3.10+ (for FastAPI backend)
-   - MongoDB 6+ (database)
-   - Docker & Docker Compose (containerization)
+   - MongoDB 6+ (native, listening on 127.0.0.1:27017)
    - Git (version control)
    - Stripe account (payments - test mode for dev)
 
    **Install Prerequisites:**
    ```bash
    # On macOS with Homebrew
-   brew install node python mongodb-community docker docker-compose
+   brew install node python mongodb-community
 
    # On Ubuntu/Debian
    sudo apt update
-   sudo apt install nodejs npm python3.10 python3-pip mongodb docker.io docker-compose
+   sudo apt install nodejs npm python3.10 python3-pip mongodb
 
    # On Windows
    # Use installers from official websites
@@ -148,9 +146,8 @@ You have **three main options** depending on your goals:
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install fastapi uvicorn motor pydantic python-jose passlib
    
-   # Create docker-compose.yml in project root
    cd ..
-   # Copy the Docker Compose configuration from docs/12-Deployment.md
+   # Make sure a native mongod is running locally (127.0.0.1:27017)
    ```
 
 4. **Follow the Sprint Plan**
@@ -245,28 +242,11 @@ source venv/bin/activate
 pip install fastapi uvicorn motor beanie pydantic python-jose[cryptography] passlib[bcrypt] python-multipart stripe sendgrid celery redis
 cd ..
 
-# 5. Create docker-compose.yml for MongoDB and Redis
-cat > docker-compose.yml << 'EOF'
-version: '3.8'
-services:
-  mongodb:
-    image: mongo:6
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-volumes:
-  mongo_data:
-EOF
-
-# 6. Start databases
-docker-compose up -d
+# 5. Ensure the native databases are running
+#    MongoDB (native mongod) on 127.0.0.1:27017
+#    Redis (native) on 127.0.0.1:6379
+sudo systemctl start mongod
+sudo systemctl start redis    # if Redis is used
 ```
 
 ### 2. Create Basic Backend Structure
@@ -360,8 +340,8 @@ curl http://localhost:8000/
 ### Q: How long will it take to build?
 **A:** The implementation guide estimates **8-12 weeks** (2-3 months) for MVP with 1-2 developers working full-time.
 
-### Q: Can I just run `docker-compose up` and it works?
-**A:** No. The Docker configuration in the docs is a template. You need to create the actual application code first.
+### Q: Is there a one-command setup?
+**A:** No. The setup steps in the docs are a template. You need to create the actual application code first, then run the backend (uvicorn) and frontend (npm) against a native MongoDB.
 
 ### Q: What do I have right now?
 **A:** You have:

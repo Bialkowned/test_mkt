@@ -20,7 +20,7 @@ test_mkt/
     ├── 09-Business-Plan.md            ← Market analysis & projections
     ├── 10-Pitch-Deck.md               ← Investor presentation
     ├── 11-Implementation-Guide.md     ← How to build it (8-12 weeks)
-    └── 12-Deployment.md               ← Docker & production setup
+    └── 12-Deployment.md               ← pm2 & production setup
 ```
 
 ## ✅ What EXISTS: Documentation & Specifications
@@ -36,7 +36,6 @@ test_mkt/
 - No React frontend code
 - No FastAPI backend code
 - No MongoDB database
-- No Docker containers
 - No running application
 - No tests
 - No deployment infrastructure
@@ -85,8 +84,9 @@ source venv/bin/activate
 pip install fastapi uvicorn motor
 cd ..
 
-# 4. Databases (Docker)
-docker-compose up -d  # MongoDB + Redis
+# 4. Database (native)
+# Ensure mongod is running locally on 127.0.0.1:27017
+sudo systemctl start mongod
 
 # 5. Follow the implementation guide
 cat docs/11-Implementation-Guide.md

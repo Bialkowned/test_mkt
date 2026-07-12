@@ -1,11 +1,11 @@
-# PeerTest Hub - Deployment & Docker Setup
+# PeerTest Hub - Deployment Setup
 
 ## Overview
 
-This document provides comprehensive deployment instructions for PeerTest Hub, including Docker containerization, local development setup, production deployment on a Linux server, CI/CD pipeline configuration, and monitoring/maintenance procedures.
+This document provides comprehensive deployment instructions for PeerTest Hub. The application runs as native processes managed by **pm2**, talking to a **native MongoDB** (`mongod`) on `127.0.0.1:27017` and, where used, a native Redis on `127.0.0.1:6379`. There is no container runtime — the backend (Uvicorn/FastAPI) and frontend (Vite build served by nginx) run directly on the host.
 
 **Deployment Targets:**
-- Local Development (Docker Compose)
+- Local Development (native services + pm2)
 - Production (Linux VPS - DigitalOcean, AWS EC2, etc.)
 - CI/CD (GitHub Actions)
 
@@ -13,7 +13,7 @@ This document provides comprehensive deployment instructions for PeerTest Hub, i
 
 ## Table of Contents
 
-1. [Docker Setup](#1-docker-setup)
+1. [Process & Service Setup](#1-process--service-setup)
 2. [Local Development](#2-local-development)
 3. [Production Deployment](#3-production-deployment)
 4. [CI/CD Pipeline](#4-cicd-pipeline)
@@ -25,89 +25,81 @@ This document provides comprehensive deployment instructions for PeerTest Hub, i
 
 ---
 
-## 1. Docker Setup
+## 1. Process & Service Setup
 
-### 1.1 Backend Dockerfile
+### 1.1 Native Services
 
-```dockerfile
-# backend/Dockerfile
-FROM python:3.11-slim
+MongoDB and Redis run natively on the host (installed via the OS package manager) and are managed by systemd:
 
-# Set working directory
-WORKDIR /app
+```bash
+# MongoDB — listens on 127.0.0.1:27017
+sudo systemctl enable --now mongod
+mongosh mongodb://127.0.0.1:27017
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY . .
-
-# Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
-
-# Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD python -c "import requests; requests.get('http://localhost:8000/health')"
-
-# Run application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Redis (if used) — listens on 127.0.0.1:6379
+sudo systemctl enable --now redis
+redis-cli ping
 ```
 
-### 1.2 Frontend Dockerfile
+### 1.2 Backend Process
 
-```dockerfile
-# frontend/Dockerfile
-# Build stage
-FROM node:18-alpine AS builder
+The FastAPI backend is run with Uvicorn under pm2:
 
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY . .
-
-# Build application
-RUN npm run build
-
-# Production stage
-FROM nginx:alpine
-
-# Copy nginx config
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Copy built assets from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Expose port
-EXPOSE 80
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
-
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### 1.3 Nginx Configuration
+### 1.3 Frontend
+
+The frontend is a Vite build. In development it runs the Vite dev server; in production the static `dist/` bundle is served by nginx (see section 3).
+
+```bash
+cd frontend
+npm ci
+npm run build   # produces dist/ for production
+```
+
+### 1.4 pm2 Ecosystem File
+
+pm2 manages all long-running app processes. A single `ecosystem.config.js` at the repo root defines them:
+
+```javascript
+// ecosystem.config.js
+module.exports = {
+  apps: [
+    {
+      name: 'peertest-backend',
+      cwd: './backend',
+      script: './venv/bin/uvicorn',
+      args: 'app.main:app --host 0.0.0.0 --port 8000',
+      env: {
+        MONGODB_URL: 'mongodb://127.0.0.1:27017/peertest_hub',
+        REDIS_URL: 'redis://127.0.0.1:6379',
+        ENVIRONMENT: 'production'
+      }
+    },
+    {
+      name: 'peertest-frontend',
+      cwd: './frontend',
+      script: 'npm',
+      args: 'run dev',
+      env: {
+        VITE_API_URL: 'http://localhost:8000/api/v1'
+      }
+    }
+  ]
+};
+```
+
+In production the frontend is served as a static build by nginx rather than the Vite dev server, so the `peertest-frontend` process is typically only used in development.
+
+### 1.5 Nginx Configuration
 
 ```nginx
-# frontend/nginx.conf
+# /etc/nginx/nginx.conf (or a site under /etc/nginx/sites-available)
 events {
     worker_connections 1024;
 }
@@ -123,14 +115,14 @@ http {
     # Gzip compression
     gzip on;
     gzip_vary on;
-    gzip_types text/plain text/css text/xml text/javascript 
-               application/x-javascript application/xml+rss 
+    gzip_types text/plain text/css text/xml text/javascript
+               application/x-javascript application/xml+rss
                application/javascript application/json;
 
     server {
         listen 80;
         server_name _;
-        root /usr/share/nginx/html;
+        root /var/www/peertest/frontend/dist;
         index index.html;
 
         # Security headers
@@ -149,9 +141,9 @@ http {
             try_files $uri $uri/ /index.html;
         }
 
-        # API proxy (for development)
+        # API proxy to the pm2-managed backend
         location /api {
-            proxy_pass http://backend:8000;
+            proxy_pass http://127.0.0.1:8000;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection 'upgrade';
@@ -165,120 +157,12 @@ http {
 }
 ```
 
-### 1.4 Docker Compose for Local Development
+### 1.6 MongoDB Initialization
 
-```yaml
-# docker-compose.yml
-version: '3.8'
-
-services:
-  # MongoDB
-  mongodb:
-    image: mongo:5.0
-    container_name: peertest-mongodb
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: password123
-      MONGO_INITDB_DATABASE: peertest_hub
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
-    networks:
-      - peertest-network
-
-  # Redis
-  redis:
-    image: redis:7-alpine
-    container_name: peertest-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - peertest-network
-    command: redis-server --appendonly yes
-
-  # Backend
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: peertest-backend
-    restart: unless-stopped
-    environment:
-      - MONGODB_URL=mongodb://root:password123@mongodb:27017/peertest_hub?authSource=admin
-      - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - FRONTEND_URL=http://localhost:5173
-      - ENVIRONMENT=development
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-      - /app/__pycache__
-    depends_on:
-      - mongodb
-      - redis
-    networks:
-      - peertest-network
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  # Frontend
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-    container_name: peertest-frontend
-    restart: unless-stopped
-    environment:
-      - VITE_API_URL=http://localhost:8000/api/v1
-      - VITE_STRIPE_PUBLISHABLE_KEY=${VITE_STRIPE_PUBLISHABLE_KEY}
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    networks:
-      - peertest-network
-    command: npm run dev
-
-volumes:
-  mongodb_data:
-  redis_data:
-
-networks:
-  peertest-network:
-    driver: bridge
-```
-
-### 1.5 Development Dockerfile for Frontend
-
-```dockerfile
-# frontend/Dockerfile.dev
-FROM node:18-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci
-
-COPY . .
-
-EXPOSE 5173
-
-CMD ["npm", "run", "dev", "--", "--host"]
-```
-
-### 1.6 MongoDB Initialization Script
+Create collections and indexes against the native mongod:
 
 ```javascript
-// docker/mongo-init.js
+// scripts/mongo-init.js  — run with: mongosh mongodb://127.0.0.1:27017 scripts/mongo-init.js
 db = db.getSiblingDB('peertest_hub');
 
 // Create collections
@@ -303,8 +187,8 @@ print('Database initialized successfully');
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/peertest-hub.git
-cd peertest-hub
+git clone https://github.com/Bialkowned/test_mkt.git
+cd test_mkt
 
 # Create .env file
 cat > .env << EOL
@@ -315,14 +199,16 @@ OPENAI_API_KEY=sk-...
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
 EOL
 
-# Start all services
-docker-compose up -d
+# Ensure native services are running
+sudo systemctl start mongod
+sudo systemctl start redis   # if Redis is used
 
-# View logs
-docker-compose logs -f
+# Start all app processes with pm2
+pm2 start ecosystem.config.js
 
-# Check status
-docker-compose ps
+# View status and logs
+pm2 status
+pm2 logs
 ```
 
 ### 2.2 Access Services
@@ -330,38 +216,34 @@ docker-compose ps
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
-- **MongoDB**: mongodb://root:password123@localhost:27017
-- **Redis**: redis://localhost:6379
+- **MongoDB**: mongodb://127.0.0.1:27017
+- **Redis**: redis://127.0.0.1:6379
 
 ### 2.3 Development Commands
 
 ```bash
-# Stop all services
-docker-compose down
+# Stop all app processes
+pm2 stop ecosystem.config.js
 
-# Rebuild after code changes
-docker-compose up -d --build
+# Restart after code changes
+pm2 restart peertest-backend
 
-# View logs for specific service
-docker-compose logs -f backend
+# View logs for a specific process
+pm2 logs peertest-backend
 
-# Execute command in container
-docker-compose exec backend bash
-docker-compose exec mongodb mongosh
-
-# Reset everything (WARNING: deletes data)
-docker-compose down -v
+# Open a shell against MongoDB
+mongosh mongodb://127.0.0.1:27017/peertest_hub
 ```
 
 ### 2.4 Seed Database
 
 ```bash
-# Run seed script
-docker-compose exec backend python scripts/seed_database.py
+# Run seed script (backend venv active)
+cd backend && source venv/bin/activate
+python scripts/seed_database.py
 
-# Or manually via mongosh
-docker-compose exec mongodb mongosh -u root -p password123 --authenticationDatabase admin
-use peertest_hub
+# Or inspect via mongosh
+mongosh mongodb://127.0.0.1:27017/peertest_hub
 db.ai_test_templates.find()
 ```
 
@@ -393,145 +275,41 @@ ssh root@your-server-ip
 # Update system
 apt update && apt upgrade -y
 
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sh get-docker.sh
+# Install runtimes and services
+apt install -y nginx nodejs npm python3 python3-venv python3-pip mongodb redis
 
-# Install Docker Compose
-curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
+# Install pm2 globally
+npm install -g pm2
 
-# Verify installations
-docker --version
-docker-compose --version
+# Enable native services
+systemctl enable --now mongod
+systemctl enable --now redis
 
 # Create app user
 adduser --disabled-password peertest
-usermod -aG docker peertest
 su - peertest
 ```
 
-### 3.3 Production Docker Compose
+### 3.3 Production Environment Variables
 
-```yaml
-# docker-compose.prod.yml
-version: '3.8'
+Create a production `.env` (never commit it):
 
-services:
-  # MongoDB
-  mongodb:
-    image: mongo:5.0
-    container_name: peertest-mongodb
-    restart: always
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
-      MONGO_INITDB_DATABASE: peertest_hub
-    volumes:
-      - mongodb_data:/data/db
-      - ./backups:/backups
-    networks:
-      - peertest-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Redis
-  redis:
-    image: redis:7-alpine
-    container_name: peertest-redis
-    restart: always
-    volumes:
-      - redis_data:/data
-    networks:
-      - peertest-network
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
-
-  # Backend
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: peertest-backend
-    restart: always
-    environment:
-      - MONGODB_URL=mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/peertest_hub?authSource=admin
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
-      - SECRET_KEY=${SECRET_KEY}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - FRONTEND_URL=https://peertest.io
-      - ENVIRONMENT=production
-    depends_on:
-      - mongodb
-      - redis
-    networks:
-      - peertest-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Frontend
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=https://api.peertest.io/api/v1
-        - VITE_STRIPE_PUBLISHABLE_KEY=${VITE_STRIPE_PUBLISHABLE_KEY}
-    container_name: peertest-frontend
-    restart: always
-    networks:
-      - peertest-network
-
-  # Nginx (Reverse Proxy)
-  nginx:
-    image: nginx:alpine
-    container_name: peertest-nginx
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - certbot_data:/var/www/certbot:ro
-      - certbot_conf:/etc/letsencrypt:ro
-    depends_on:
-      - backend
-      - frontend
-    networks:
-      - peertest-network
-
-  # Certbot (SSL Certificates)
-  certbot:
-    image: certbot/certbot
-    container_name: peertest-certbot
-    volumes:
-      - certbot_data:/var/www/certbot
-      - certbot_conf:/etc/letsencrypt
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-
-volumes:
-  mongodb_data:
-  redis_data:
-  certbot_data:
-  certbot_conf:
-
-networks:
-  peertest-network:
-    driver: bridge
+```bash
+# .env.prod
+SECRET_KEY=<generated>
+MONGODB_URL=mongodb://127.0.0.1:27017/peertest_hub
+REDIS_URL=redis://127.0.0.1:6379
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+OPENAI_API_KEY=sk-...
+FRONTEND_URL=https://peertest.io
+ENVIRONMENT=production
 ```
 
 ### 3.4 Production Nginx Configuration
 
 ```nginx
-# nginx/nginx.conf
+# /etc/nginx/sites-available/peertest
 events {
     worker_connections 2048;
 }
@@ -557,8 +335,8 @@ http {
     gzip_vary on;
     gzip_proxied any;
     gzip_comp_level 6;
-    gzip_types text/plain text/css text/xml text/javascript 
-               application/x-javascript application/xml+rss 
+    gzip_types text/plain text/css text/xml text/javascript
+               application/x-javascript application/xml+rss
                application/javascript application/json;
 
     # Rate limiting
@@ -579,7 +357,7 @@ http {
         }
     }
 
-    # Main application (Frontend)
+    # Main application (static frontend build)
     server {
         listen 443 ssl http2;
         server_name peertest.io www.peertest.io;
@@ -598,17 +376,15 @@ http {
         add_header X-XSS-Protection "1; mode=block" always;
         add_header Referrer-Policy "no-referrer-when-downgrade" always;
 
+        root /var/www/peertest/frontend/dist;
+        index index.html;
+
         location / {
-            proxy_pass http://frontend:80;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
+            try_files $uri $uri/ /index.html;
         }
     }
 
-    # API (Backend)
+    # API (proxied to the pm2-managed backend)
     server {
         listen 443 ssl http2;
         server_name api.peertest.io;
@@ -624,14 +400,14 @@ http {
         # API rate limiting
         location / {
             limit_req zone=api_limit burst=20 nodelay;
-            
-            proxy_pass http://backend:8000;
+
+            proxy_pass http://127.0.0.1:8000;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
-            
+
             # CORS headers (if needed)
             add_header 'Access-Control-Allow-Origin' 'https://peertest.io' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
@@ -641,12 +417,12 @@ http {
         # Stricter rate limit for auth endpoints
         location /api/v1/auth {
             limit_req zone=auth_limit burst=5 nodelay;
-            proxy_pass http://backend:8000;
+            proxy_pass http://127.0.0.1:8000;
         }
 
         # Webhooks (no rate limit)
         location /api/v1/webhooks {
-            proxy_pass http://backend:8000;
+            proxy_pass http://127.0.0.1:8000;
         }
     }
 }
@@ -655,32 +431,35 @@ http {
 ### 3.5 Deploy to Production
 
 ```bash
-# On your local machine
-# Build and push images (if using registry)
-docker build -t yourusername/peertest-backend:latest ./backend
-docker build -t yourusername/peertest-frontend:latest ./frontend
-docker push yourusername/peertest-backend:latest
-docker push yourusername/peertest-frontend:latest
+# Transfer code to the server
+rsync -avz --exclude 'node_modules' --exclude '__pycache__' --exclude 'venv' \
+  ./ peertest@your-server-ip:/var/www/peertest/
 
-# Or transfer files directly
-rsync -avz --exclude 'node_modules' --exclude '__pycache__' \
-  ./ peertest@your-server-ip:/home/peertest/app/
+# On the server
+cd /var/www/peertest
 
-# On server
-cd /home/peertest/app
+# Backend deps
+cd backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && cd ..
 
-# Create production .env
-nano .env.prod
-# Add all production environment variables
+# Frontend build
+cd frontend && npm ci && npm run build && cd ..
 
-# Start services
-docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
+# Start (or reload) app processes with pm2
+pm2 start ecosystem.config.js --env production
+pm2 save
 
-# Check logs
-docker-compose -f docker-compose.prod.yml logs -f
+# Reload nginx
+sudo nginx -t && sudo systemctl reload nginx
 
 # Verify
 curl https://api.peertest.io/health
+```
+
+Persist pm2 across reboots:
+
+```bash
+pm2 startup    # prints a command to run once (installs the systemd unit)
+pm2 save       # snapshot the current process list
 ```
 
 ---
@@ -698,89 +477,49 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
-  IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
-
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Install backend dependencies
       working-directory: ./backend
       run: |
         pip install -r requirements.txt
         pip install pytest pytest-asyncio pytest-cov
-    
+
     - name: Run backend tests
       working-directory: ./backend
       run: pytest tests/ --cov=app --cov-report=xml
-    
+
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
-    
+
     - name: Install frontend dependencies
       working-directory: ./frontend
       run: npm ci
-    
+
     - name: Run frontend tests
       working-directory: ./frontend
       run: npm test
-    
+
     - name: Build frontend
       working-directory: ./frontend
       run: npm run build
 
-  build-and-push:
+  deploy:
     needs: test
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Log in to Container Registry
-      uses: docker/login-action@v2
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Build and push backend
-      uses: docker/build-push-action@v4
-      with:
-        context: ./backend
-        push: true
-        tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ github.sha }}
-    
-    - name: Build and push frontend
-      uses: docker/build-push-action@v4
-      with:
-        context: ./frontend
-        push: true
-        tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ github.sha }}
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    
     steps:
     - name: Deploy to server
       uses: appleboy/ssh-action@master
@@ -789,10 +528,12 @@ jobs:
         username: ${{ secrets.SERVER_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          cd /home/peertest/app
-          docker-compose -f docker-compose.prod.yml pull
-          docker-compose -f docker-compose.prod.yml up -d
-          docker system prune -f
+          cd /var/www/peertest
+          git pull origin main
+          cd backend && source venv/bin/activate && pip install -r requirements.txt && cd ..
+          cd frontend && npm ci && npm run build && cd ..
+          pm2 reload ecosystem.config.js --env production
+          sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ### 4.2 GitHub Secrets Configuration
@@ -811,28 +552,26 @@ SSH_PRIVATE_KEY=<your-ssh-private-key>
 
 ### 5.1 Obtain SSL Certificates
 
+Use the system Certbot package with the nginx plugin:
+
 ```bash
 # On server
-# Stop nginx temporarily
-docker-compose -f docker-compose.prod.yml stop nginx
+sudo apt install -y certbot python3-certbot-nginx
 
-# Get certificates
-docker run -it --rm \
-  -v $(pwd)/certbot_conf:/etc/letsencrypt \
-  -v $(pwd)/certbot_data:/var/www/certbot \
-  -p 80:80 \
-  certbot/certbot certonly --standalone \
+sudo certbot --nginx \
   -d peertest.io -d www.peertest.io -d api.peertest.io \
   --email your@email.com \
   --agree-tos
-
-# Start nginx
-docker-compose -f docker-compose.prod.yml start nginx
 ```
 
 ### 5.2 Auto-Renewal
 
-Certbot container in docker-compose will auto-renew certificates every 12 hours.
+The Certbot package installs a systemd timer that renews certificates automatically. Verify with:
+
+```bash
+sudo systemctl status certbot.timer
+sudo certbot renew --dry-run
+```
 
 ---
 
@@ -841,24 +580,23 @@ Certbot container in docker-compose will auto-renew certificates every 12 hours.
 ### 6.1 Log Management
 
 ```bash
-# View logs
-docker-compose logs -f backend
-docker-compose logs --tail=100 frontend
+# Application logs (pm2)
+pm2 logs peertest-backend
+pm2 logs --lines 100
 
-# Save logs to file
-docker-compose logs > logs-$(date +%Y%m%d).txt
+# Nginx logs
+sudo tail -f /var/log/nginx/access.log
+sudo tail -f /var/log/nginx/error.log
 
-# Rotate logs automatically (configured in docker-compose)
+# Rotate pm2 logs
+pm2 install pm2-logrotate
 ```
 
 ### 6.2 Application Monitoring
 
-**Install monitoring tools:**
-
 ```bash
-# Prometheus + Grafana (optional advanced setup)
-docker run -d --name=prometheus -p 9090:9090 prom/prometheus
-docker run -d --name=grafana -p 3000:3000 grafana/grafana
+# Real-time process metrics
+pm2 monit
 ```
 
 ### 6.3 Uptime Monitoring
@@ -886,14 +624,11 @@ BACKUP_DIR="/home/peertest/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="mongodb_backup_${DATE}.gz"
 
-# Create backup
-docker exec peertest-mongodb mongodump \
-  --username root \
-  --password password123 \
-  --authenticationDatabase admin \
-  --db peertest_hub \
+# Create backup against the native mongod
+mongodump \
+  --uri="mongodb://127.0.0.1:27017/peertest_hub" \
   --gzip \
-  --archive=/backups/${BACKUP_FILE}
+  --archive=${BACKUP_DIR}/${BACKUP_FILE}
 
 # Keep only last 7 days
 find ${BACKUP_DIR} -name "mongodb_backup_*.gz" -mtime +7 -delete
@@ -908,19 +643,16 @@ echo "Backup completed: ${BACKUP_FILE}"
 crontab -e
 
 # Daily backup at 2 AM
-0 2 * * * /home/peertest/app/scripts/backup.sh >> /home/peertest/logs/backup.log 2>&1
+0 2 * * * /var/www/peertest/scripts/backup.sh >> /home/peertest/logs/backup.log 2>&1
 ```
 
 ### 7.3 Restore from Backup
 
 ```bash
-# Restore specific backup
-docker exec peertest-mongodb mongorestore \
-  --username root \
-  --password password123 \
-  --authenticationDatabase admin \
+mongorestore \
+  --uri="mongodb://127.0.0.1:27017" \
   --gzip \
-  --archive=/backups/mongodb_backup_20240210_020000.gz
+  --archive=/home/peertest/backups/mongodb_backup_20240210_020000.gz
 ```
 
 ---
@@ -930,44 +662,35 @@ docker exec peertest-mongodb mongorestore \
 ### 8.1 Update Application
 
 ```bash
-# Pull latest code
-cd /home/peertest/app
+cd /var/www/peertest
 git pull origin main
 
-# Rebuild and restart
-docker-compose -f docker-compose.prod.yml up -d --build
+cd backend && source venv/bin/activate && pip install -r requirements.txt && cd ..
+cd frontend && npm ci && npm run build && cd ..
 
-# Or use CI/CD (push to main)
+pm2 reload ecosystem.config.js --env production
 ```
 
 ### 8.2 Database Maintenance
 
 ```bash
-# Compact database
-docker exec peertest-mongodb mongosh \
-  -u root -p password123 --authenticationDatabase admin \
+# Compact a collection
+mongosh mongodb://127.0.0.1:27017/peertest_hub \
   --eval "db.runCommand({ compact: 'users' })"
 
 # Check indexes
-docker exec peertest-mongodb mongosh \
-  -u root -p password123 --authenticationDatabase admin \
-  peertest_hub --eval "db.jobs.getIndexes()"
+mongosh mongodb://127.0.0.1:27017/peertest_hub \
+  --eval "db.jobs.getIndexes()"
 ```
 
-### 8.3 Clean Up Docker Resources
+### 8.3 Clean Up Resources
 
 ```bash
-# Remove unused images
-docker image prune -a -f
+# Flush pm2 logs
+pm2 flush
 
-# Remove stopped containers
-docker container prune -f
-
-# Remove unused volumes
-docker volume prune -f
-
-# Full cleanup
-docker system prune -a -f
+# Remove old build artifacts
+rm -rf frontend/dist && cd frontend && npm run build && cd ..
 ```
 
 ---
@@ -976,40 +699,35 @@ docker system prune -a -f
 
 ### 9.1 Common Issues
 
-**Issue: Container won't start**
+**Issue: Backend process won't start**
 ```bash
 # Check logs
-docker-compose logs backend
+pm2 logs peertest-backend
 
 # Check if port is in use
 sudo lsof -i :8000
 
-# Restart container
-docker-compose restart backend
+# Restart the process
+pm2 restart peertest-backend
 ```
 
 **Issue: Database connection failed**
 ```bash
 # Check MongoDB is running
-docker ps | grep mongodb
+systemctl status mongod
 
 # Test connection
-docker exec peertest-mongodb mongosh \
-  -u root -p password123 --authenticationDatabase admin
-
-# Check network
-docker network inspect peertest-network
+mongosh mongodb://127.0.0.1:27017
 ```
 
 **Issue: SSL certificate error**
 ```bash
-# Check certificate expiry
-docker run --rm -v $(pwd)/certbot_conf:/etc/letsencrypt \
-  certbot/certbot certificates
+# Check certificate status
+sudo certbot certificates
 
 # Renew manually
-docker-compose run --rm certbot renew
-docker-compose restart nginx
+sudo certbot renew
+sudo systemctl reload nginx
 ```
 
 **Issue: Out of disk space**
@@ -1018,27 +736,22 @@ docker-compose restart nginx
 df -h
 
 # Find large files
-du -sh /var/lib/docker/*
-docker system df
-
-# Clean up
-docker system prune -a -f --volumes
+du -sh /var/www/peertest/*
+pm2 flush
 ```
 
 ### 9.2 Performance Issues
 
 ```bash
-# Check resource usage
-docker stats
+# Check process resource usage
+pm2 monit
 
 # Check MongoDB performance
-docker exec peertest-mongodb mongosh \
-  -u root -p password123 --authenticationDatabase admin \
+mongosh mongodb://127.0.0.1:27017/peertest_hub \
   --eval "db.currentOp()"
 
 # Check slow queries
-docker exec peertest-mongodb mongosh \
-  -u root -p password123 --authenticationDatabase admin \
+mongosh mongodb://127.0.0.1:27017/peertest_hub \
   --eval "db.system.profile.find().sort({ts:-1}).limit(5)"
 ```
 
@@ -1047,7 +760,8 @@ docker exec peertest-mongodb mongosh \
 ## Security Checklist
 
 - [ ] All secrets in environment variables
-- [ ] Strong passwords for database
+- [ ] Strong authentication for the database
+- [ ] MongoDB bound to 127.0.0.1 only (not exposed publicly)
 - [ ] HTTPS enabled with valid certificate
 - [ ] Firewall configured (only 80, 443, 22 open)
 - [ ] SSH key-based authentication only
@@ -1089,20 +803,17 @@ docker exec peertest-mongodb mongosh \
 ## Quick Reference Commands
 
 ```bash
-# Start all services
-docker-compose -f docker-compose.prod.yml up -d
+# Start all app processes
+pm2 start ecosystem.config.js --env production
 
-# Stop all services
-docker-compose -f docker-compose.prod.yml down
+# Stop all app processes
+pm2 stop ecosystem.config.js
 
 # View logs
-docker-compose -f docker-compose.prod.yml logs -f [service]
+pm2 logs [process]
 
-# Restart service
-docker-compose -f docker-compose.prod.yml restart [service]
-
-# Rebuild and restart
-docker-compose -f docker-compose.prod.yml up -d --build
+# Reload (zero-downtime) after a deploy
+pm2 reload ecosystem.config.js --env production
 
 # Backup database
 ./scripts/backup.sh
@@ -1111,19 +822,16 @@ docker-compose -f docker-compose.prod.yml up -d --build
 curl https://api.peertest.io/health
 
 # View resource usage
-docker stats
-
-# Clean up
-docker system prune -af
+pm2 monit
 ```
 
 ---
 
 ## Support & Resources
 
-- **GitHub Issues**: https://github.com/yourusername/peertest-hub/issues
-- **Documentation**: https://docs.peertest.io
-- **Docker Docs**: https://docs.docker.com/
+- **GitHub Issues**: https://github.com/Bialkowned/test_mkt/issues
+- **pm2 Docs**: https://pm2.keymetrics.io/docs/usage/quick-start/
+- **MongoDB Docs**: https://www.mongodb.com/docs/
 - **FastAPI Deployment**: https://fastapi.tiangolo.com/deployment/
 - **Nginx Docs**: https://nginx.org/en/docs/
 
@@ -1131,14 +839,13 @@ docker system prune -af
 
 ## Summary
 
-This deployment guide covers everything needed to run PeerTest Hub in production. Follow the steps carefully, test thoroughly, and monitor closely after deployment.
+This deployment guide covers everything needed to run PeerTest Hub in production on native services managed by pm2. Follow the steps carefully, test thoroughly, and monitor closely after deployment.
 
 **Key Takeaways:**
-1. Use Docker for consistency
+1. Run app processes under pm2 against a native mongod on 127.0.0.1:27017
 2. Automate with CI/CD
 3. Monitor everything
 4. Backup regularly
 5. Keep security tight
 
 Good luck with your deployment! 🚀
-

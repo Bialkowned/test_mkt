@@ -408,7 +408,7 @@ Build the most trusted, efficient, and user-friendly crowdtesting platform that 
 
 **Infrastructure:**
 - DigitalOcean/AWS
-- Docker + Docker Compose
+- pm2 process manager
 - GitHub Actions CI/CD
 - CloudFlare CDN
 

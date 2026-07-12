@@ -81,8 +81,8 @@ test_mkt/
     │   ├── Technology setup
     │   └── Testing strategy
     │
-    └── 📄 12-Deployment.md               Docker & Production
-        ├── Docker Compose setup
+    └── 📄 12-Deployment.md               Deployment & Production
+        ├── pm2 process setup
         ├── Production deployment
         ├── CI/CD pipeline
         └── Monitoring & backups
@@ -134,9 +134,8 @@ test_mkt/                              (You will create these)
 │   ├── 📄 seed.js                     Sample data for development
 │   └── 📄 migrations/                 Schema migration scripts
 │
-├── 📁 docker/                          Docker Configuration (TO BUILD)
-│   ├── 📄 Dockerfile.frontend         Frontend container
-│   ├── 📄 Dockerfile.backend          Backend container
+├── 📁 deploy/                          Deployment Configuration (TO BUILD)
+│   ├── 📄 ecosystem.config.js         pm2 process definitions
 │   └── 📄 nginx.conf                  Nginx reverse proxy config
 │
 ├── 📁 tests/                           Test Suites (TO BUILD)
@@ -150,8 +149,7 @@ test_mkt/                              (You will create these)
 │       ├── 📄 deploy.yml              Deploy to production
 │       └── 📄 security.yml            Security scanning
 │
-├── 📄 docker-compose.yml               Local dev environment (TO CREATE)
-├── 📄 docker-compose.prod.yml          Production environment (TO CREATE)
+├── 📄 ecosystem.config.js              pm2 process definitions (TO CREATE)
 ├── 📄 .env.example                     Environment variables template
 ├── 📄 .gitignore                       Git ignore rules
 └── 📄 Makefile                         Common commands (optional)

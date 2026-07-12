@@ -139,9 +139,9 @@ Step-by-step development guide:
 **Includes:** Code examples, setup commands, troubleshooting, best practices
 
 ### 10. **12-Deployment.md** (690 lines)
-Production deployment and Docker setup:
-- ✅ Docker containerization (backend, frontend, MongoDB, Redis)
-- ✅ Docker Compose for local development
+Production deployment setup:
+- ✅ pm2 process management (backend, frontend) against native MongoDB and Redis
+- ✅ Native MongoDB for local development
 - ✅ Production deployment on Linux VPS
 - ✅ Nginx reverse proxy configuration
 - ✅ SSL/HTTPS setup with Let's Encrypt
@@ -151,14 +151,14 @@ Production deployment and Docker setup:
 - ✅ Maintenance tasks
 - ✅ Troubleshooting guide
 
-**Includes:** Dockerfiles, docker-compose configs, nginx config, deployment scripts
+**Includes:** pm2 ecosystem configs, nginx config, deployment scripts
 
 ---
 
 ## Key Features Across All Documentation
 
 ### Implementation-Ready
-- ✅ Concrete code examples (Python, TypeScript, Docker, YAML)
+- ✅ Concrete code examples (Python, TypeScript, YAML)
 - ✅ Specific field names and data structures
 - ✅ Complete API endpoint paths and parameters
 - ✅ Component names and file organization
@@ -206,7 +206,7 @@ Production deployment and Docker setup:
 - **Canvas:** Fabric.js (screenshots)
 
 ### Infrastructure
-- **Containers:** Docker + Docker Compose
+- **Process Manager:** pm2
 - **Proxy:** Nginx
 - **SSL:** Let's Encrypt (Certbot)
 - **CI/CD:** GitHub Actions
@@ -489,7 +489,7 @@ test_mkt/
 │   ├── 10-Pitch-Deck.md ✨ NEW
 │   ├── 11-Implementation-Guide.md ✨ NEW
 │   └── 12-Deployment.md ✨ NEW
-└── [future: backend/, frontend/, docker/]
+└── [future: backend/, frontend/]
 ```
 
 ---
