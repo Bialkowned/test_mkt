@@ -99,3 +99,6 @@ uploads/
 
 *.bak
 *.orig
+
+# lint/build caches (added during .207 decommission audit, 2026-08-25)
+.ruff_cache/
