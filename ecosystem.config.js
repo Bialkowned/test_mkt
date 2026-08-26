@@ -4,7 +4,7 @@ module.exports = {
       name: 'testmkt-backend',
       cwd: '/home/user1/Production/3_community/8_Tester/backend',
       script: '/home/user1/Production/3_community/8_Tester/backend/venv/bin/python',
-      args: '-m uvicorn main:app --host 0.0.0.0 --port 5108',
+      args: '-m uvicorn main:app --host 127.0.0.1 --port 5108',
       interpreter: 'none',
       env: {
         PYTHONPATH: '/home/user1/Production/3_community/8_Tester/backend',
@@ -16,7 +16,7 @@ module.exports = {
       name: 'testmkt-frontend',
       cwd: '/home/user1/Production/3_community/8_Tester/frontend',
       script: 'npx',
-      args: 'serve -s dist -l 5008',
+      args: 'serve -s dist -l tcp://127.0.0.1:5008',
       interpreter: 'none',
       watch: false,
       autorestart: true,
