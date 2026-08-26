@@ -102,3 +102,10 @@ uploads/
 
 # lint/build caches (added during .207 decommission audit, 2026-08-25)
 .ruff_cache/
+
+# secret backups - never commit these
+.env.bak*
+.env.*.bak
+.env.pre-*
+*.env.bak*
+.env.backup*
