@@ -65,6 +65,24 @@ refresh_tokens_col = db.refresh_tokens
 security = HTTPBearer()
 app = FastAPI(title="PeerTest Hub API", version="1.0.0")
 
+
+# --- fleet security headers (added 2026-08-27 by _infra/standards/add_security_headers.py)
+# setdefault throughout: this middleware is added last so it runs OUTERMOST, which means any
+# header an inner middleware already set is present here and is deliberately left alone.
+_FLEET_DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+
+@app.middleware("http")
+async def _fleet_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    # Swagger/ReDoc load their assets from a CDN; a strict CSP renders those pages blank.
+    if not request.url.path.startswith(_FLEET_DOCS_PATHS):
+        response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
