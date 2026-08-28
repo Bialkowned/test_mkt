@@ -7,6 +7,10 @@ import { defineConfig, devices } from '@playwright/test'
 const baseURL = process.env.E2E_BASE_URL || 'https://tester.bialkowned.com'
 
 export default defineConfig({
+  // Provisioned QA identities: one run id, and cleanup when the run ends.
+  // See backend/core/standards/E2E_STANDARD.md.
+  globalSetup: './global-setup',
+  globalTeardown: './global-teardown',
   testDir: './e2e',
   timeout: 60_000,
   expect: { timeout: 15_000 },
