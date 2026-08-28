@@ -151,7 +151,7 @@ export default function Login({ setUser }) {
                   key={acct.email}
                   type="button"
                   onClick={() => {
-                    setFormData({ email: acct.email, password: 'TestPass123' })
+                    setFormData({ email: acct.email, password: import.meta.env.VITE_E2E_PASSWORD })
                     setError('')
                   }}
                   className="flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors text-left"

@@ -295,7 +295,7 @@ uvicorn app.main:app --reload
 # Test endpoints
 curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"Test1234!","full_name":"Test User","role":"client"}'
+  -d '{"email":"test@example.com","password":import.meta.env.VITE_E2E_PASSWORD,"full_name":"Test User","role":"client"}'
 ```
 
 #### Day 5-7: Core Models & Repositories
@@ -606,7 +606,7 @@ async def test_register_user():
             "/api/v1/auth/register",
             json={
                 "email": "test@example.com",
-                "password": "Test1234!",
+                "password": import.meta.env.VITE_E2E_PASSWORD,
                 "full_name": "Test User",
                 "role": "client"
             }
@@ -626,7 +626,7 @@ async def test_login():
             "/api/v1/auth/login",
             json={
                 "email": "test@example.com",
-                "password": "Test1234!"
+                "password": import.meta.env.VITE_E2E_PASSWORD
             }
         )
         assert response.status_code == 200
@@ -662,14 +662,14 @@ describe('LoginForm', () => {
       target: { value: 'test@example.com' }
     })
     fireEvent.change(screen.getByLabelText(/password/i), {
-      target: { value: 'Test1234!' }
+      target: { value: import.meta.env.VITE_E2E_PASSWORD }
     })
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
     
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({
         email: 'test@example.com',
-        password: 'Test1234!'
+        password: import.meta.env.VITE_E2E_PASSWORD
       })
     })
   })
