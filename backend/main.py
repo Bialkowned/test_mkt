@@ -66,7 +66,7 @@ security = HTTPBearer()
 app = FastAPI(title="PeerTest Hub API", version="1.0.0")
 
 
-# --- fleet security headers (added 2026-08-27 by _infra/standards/add_security_headers.py)
+# --- fleet security headers (added 2026-08-27 by 2_commercial/1_Bialkowned/bialkowned_erp/backend/core/standards/add_security_headers.py)
 # setdefault throughout: this middleware is added last so it runs OUTERMOST, which means any
 # header an inner middleware already set is present here and is deliberately left alone.
 _FLEET_DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
