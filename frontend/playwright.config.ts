@@ -7,6 +7,10 @@ import { defineConfig, devices } from '@playwright/test'
 const baseURL = process.env.E2E_BASE_URL || 'https://tester.bialkowned.com'
 
 export default defineConfig({
+  // Serial. These applications rate-limit their own login -- DomusLogic allows 20
+  // requests a minute and then bans for five -- so a parallel run burns the
+  // allowance and every later test fails with a timeout that reads as a broken app.
+  workers: 1,
   // Provisioned QA identities: one run id, and cleanup when the run ends.
   // See backend/core/standards/E2E_STANDARD.md.
   globalSetup: './global-setup',
