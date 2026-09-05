@@ -109,3 +109,8 @@ uploads/
 .env.pre-*
 *.env.bak*
 .env.backup*
+
+# --- fleet baseline (added by repo_hygiene) ---
+!.env.example
+*.pyc
+*.bak-*
