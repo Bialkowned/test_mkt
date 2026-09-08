@@ -25,7 +25,10 @@ logger = logging.getLogger("peertesthub")
 
 # --- Config (all from .env) ---
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/peertesthub")
+# REQUIRED, NOT DEFAULTED (OPS-003). A localhost fallback does not fail when the
+# environment is missing -- it connects to a DIFFERENT database and serves empty
+# results from an application that looks healthy.
+MONGO_URI = os.environ["MONGO_URI"]
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5008").split(",")]
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "5108"))
