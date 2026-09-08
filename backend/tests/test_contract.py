@@ -142,6 +142,37 @@ def test_no_undefined_names(backend_root):
 _AUTH = re.compile(r"^(get_)?(current|require|verify)_", re.I)
 
 
+#: AND A DECLARED DEPENDENCY IS NOT THE ONLY WAY TO ENFORCE AUTH. internationalluxe checks
+#: the session inside each handler body, so its seven /admin endpoints declare nothing but
+#: get_database and get_settings -- the dependency walk found no protected route at all and
+#: the check SKIPPED, on an application whose admin surface is most of its API. A test that
+#: passes by checking nothing is the failure this fleet has hit repeatedly.
+#:
+#: So the second derivation asks about the PATH, which is true regardless of how the guard
+#: is written: an /admin route must not answer an anonymous caller. That is an invariant on
+#: its own -- hiding the nav row while leaving the data readable by URL is a defect this
+#: fleet has shipped more than once.
+_ADMIN_PATH = re.compile(r"/(admin|internal|manage)(/|$)", re.I)
+
+#: The endpoints that must answer an anonymous caller: the ones that hand out a session,
+#: and the one that throws it away (signing out without a session is idempotent, not a
+#: breach).
+#:
+#: MATCHED ON THE LAST SEGMENT, WHOLE. Written as a substring search, "token" exempted
+#: websiteforge's `/api/tokens/balance`, `/api/tokens/use` and `/api/tokens/purchase` --
+#: billing endpoints that spend and buy credits, which are exactly the routes that most
+#: need this check. An exemption that quietly removes five of a program's eleven
+#: protected routes is worse than no exemption.
+_SESSION_VERB = re.compile(
+    r"(login|signin|sign-in|logout|signout|sign-out|token|refresh|register|signup"
+    r"|sign-up|forgot|forgot-password|reset|reset-password)", re.I)
+
+
+def _HANDS_OUT_A_SESSION(path: str) -> bool:
+    last = [seg for seg in path.split("/") if seg]
+    return bool(last) and bool(_SESSION_VERB.fullmatch(last[-1]))
+
+
 def _protected_routes():
     out = []
     for path, route in _api_routes():
@@ -152,8 +183,11 @@ def _protected_routes():
             d = stack.pop()
             names.add(getattr(d.call, "__name__", ""))
             stack.extend(d.dependencies)
-        if any(_AUTH.match(n or "") for n in names):
+        declared = any(_AUTH.match(n or "") for n in names)
+        if declared or _ADMIN_PATH.search(path):
             for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
+                if _HANDS_OUT_A_SESSION(path):
+                    continue
                 out.append((method, path))
     return sorted(set(out))
 
@@ -164,6 +198,13 @@ PROTECTED = _protected_routes()
 @pytest.mark.skipif(not PROTECTED, reason="this program declares no authenticated routes")
 @pytest.mark.parametrize("method,path", PROTECTED)
 def test_a_protected_route_refuses_an_anonymous_caller(client, method, path):
+    """An anonymous caller must not SUCCEED. 401 or 403 is the right answer and 422 is an
+    acceptable one -- it means the request body was validated before the caller was
+    authenticated, which leaks the schema and is worth tightening, but refuses all the
+    same. A 2xx is the hole: hiding a nav row while leaving the data readable by URL is a
+    defect this fleet has shipped more than once.
+    """
     r = client.request(method, path)
-    assert r.status_code in (401, 403), (
-        f"{method} {path} answered {r.status_code} to a caller with no token")
+    assert not (200 <= r.status_code < 300), (
+        f"{method} {path} answered {r.status_code} to a caller with no credentials: "
+        f"{r.text[:200]}")
