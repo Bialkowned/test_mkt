@@ -52,7 +52,11 @@ resend.api_key = RESEND_API_KEY
 # --- Database ---
 
 client = AsyncIOMotorClient(MONGO_URI)
-db = client.get_default_database()
+# DATABASE_NAME is the fleet-standard key (CON-001). get_database(None) is
+# get_default_database(): the same database from the connection string's
+# path, and the same error when it has none. Neither branch is a hardcoded
+# default -- both values come from the environment.
+db = client.get_database(os.getenv("DATABASE_NAME") or None)
 users_col = db.users
 projects_col = db.projects
 jobs_col = db.jobs
