@@ -1225,9 +1225,26 @@ function BidPaymentForm({ bid, onSuccess }) {
     setPaying(true)
     setPayError('')
 
-    const { error } = await stripe.confirmPayment({ elements, redirect: 'if_required' })
+    const { error, paymentIntent } = await stripe.confirmPayment({
+      // Without a return_url Stripe cannot send the payer to their bank for
+      // 3-D Secure and back, so `if_required` fails outright on a card that
+      // needs authenticating rather than challenging it.
+      confirmParams: { return_url: window.location.href },
+      elements,
+      redirect: 'if_required',
+    })
     if (error) {
       setPayError(error.message)
+      setPaying(false)
+      return
+    }
+
+    // No error is not the same as paid. An intent can come back
+    // `requires_action` with no error at all, and treating that as success
+    // marked a job paid that nobody had paid for.
+    const status = paymentIntent?.status
+    if (status !== 'succeeded' && status !== 'processing') {
+      setPayError('That payment was not completed. Please try again.')
       setPaying(false)
       return
     }

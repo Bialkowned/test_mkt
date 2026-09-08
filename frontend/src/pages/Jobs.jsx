@@ -661,13 +661,25 @@ function PaymentForm({ job, onSuccess }) {
     setPaying(true)
     setPayError('')
 
-    const { error } = await stripe.confirmPayment({
+    const { error, paymentIntent } = await stripe.confirmPayment({
+      // Without a return_url Stripe cannot send the payer to their bank for
+      // 3-D Secure and back, so `if_required` fails outright on a card that
+      // needs authenticating rather than challenging it.
+      confirmParams: { return_url: window.location.href },
       elements,
       redirect: 'if_required',
     })
 
     if (error) {
       setPayError(error.message)
+      setPaying(false)
+      return
+    }
+
+    // No error is not the same as paid -- `requires_action` returns neither.
+    const status = paymentIntent?.status
+    if (status !== 'succeeded' && status !== 'processing') {
+      setPayError('That payment was not completed. Please try again.')
       setPaying(false)
       return
     }
