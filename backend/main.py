@@ -1990,3 +1990,9 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=BACKEND_PORT)
+
+
+# --- fleet standard: GET /health names this service
+# Installed by core/standards/install_health.py — see STACK_STANDARD.md.
+from fleet_health import FleetHealth  # noqa: E402
+app.add_middleware(FleetHealth, service="Tester")
