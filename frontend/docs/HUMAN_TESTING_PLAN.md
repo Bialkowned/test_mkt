@@ -145,3 +145,11 @@ Source of truth: `backend/main.py`, `frontend/src/App.jsx`, `frontend/src/pages/
 |--------|------|-----------------|--------------|---------|
 |        |      |                 |              | ☐ Pass ☐ Fail |
 |        |      |                 |              | ☐ Pass ☐ Fail |
+
+## Test Accounts (provisioned + verified-login)
+
+| Role | Email | Password | Auth |
+|---|---|---|---|
+| builder | qa-builder@bialkowned.com | `$E2E_PASSWORD` | password |
+| tester | qa-tester@bialkowned.com | `$E2E_PASSWORD` | password |
+
