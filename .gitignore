@@ -114,3 +114,7 @@ uploads/
 !.env.example
 *.pyc
 *.bak-*
+test-results/
+.claude/
+**/test-results/
+**/auth-state.json
