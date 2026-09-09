@@ -112,7 +112,12 @@ class FleetHealth:
         ctype = next((v.decode("latin-1") for k, v in headers
                       if k.decode("latin-1").lower() == "content-type"), "")
         if "json" not in ctype.lower():
-            return await self._raw(status, headers, raw, send)
+            # A 200 that is not JSON on /health is almost always the SPA catch-all answering
+            # for a route that does not exist -- engram returned its whole index.html here.
+            # That is the failure STANDARDS.md opens by naming: an SPA returns 200 for a URL
+            # with no route behind it, so "it responded" proves nothing. The convention wants
+            # JSON that names the service, so answer for it rather than forwarding a page.
+            return await self._json(200, {"service": self.service, "status": "ok"}, send)
         try:
             doc = json.loads(raw or b"{}")
         except Exception:
