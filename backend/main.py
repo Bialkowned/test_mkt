@@ -60,7 +60,7 @@ client = AsyncIOMotorClient(MONGO_URI)
 # path, and the same error when it has none. Neither branch is a hardcoded
 # default -- both values come from the environment.
 db = client.get_database(os.getenv("DATABASE_NAME") or None)
-users_col = db.users
+users_col = db.user_accounts
 projects_col = db.projects
 jobs_col = db.jobs
 submissions_col = db.submissions
