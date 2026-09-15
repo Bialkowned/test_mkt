@@ -1,4 +1,4 @@
-"""GET /health answers with JSON that names this service.
+"""GET /api/health answers with JSON that names this service.
 
 Installed fleet-wide by core/standards/install_health.py. See STACK_STANDARD.md.
 
@@ -18,7 +18,7 @@ route registered, so an appended route either loses to the existing one or, if i
 throws that work away. The convention is that the response NAMES the service. It was never
 that every program answers the same shallow question.
 
-So this sits in front, touches nothing but `GET /health`, and:
+So this sits in front, touches nothing but `GET /api/health` and `GET /health`, and:
 
   * passes the request down untouched, then adds `service` to the JSON that comes back
     if -- and only if -- nothing there already names it;
@@ -33,6 +33,17 @@ the serving path is not measurable.
 from __future__ import annotations
 
 import json
+
+#: BOTH paths, because the fleet's INGRESS decides which one is reachable. Every tunnel
+#: routes /api/* to the backend and / to the frontend, so at a PUBLIC origin /health is
+#: answered by the SPA shell and only /api/health reaches the application at all. CON-001
+#: was amended to /api/health on 2026-09-15 for that reason; intercepting only /health
+#: would have left this middleware correct on the internal origin and invisible on the one
+#: `deployment_target` actually probes -- which is the whole point of installing it.
+#:
+#: /health stays because it is what the fourteen programs already carrying this middleware
+#: serve, and because the internal origin reaches the backend directly, where it works.
+HEALTH_PATHS = ("/api/health", "/health")
 
 #: Keys that count as naming the service, in the order deployment_target reads them.
 NAME_KEYS = ("service", "app", "name", "application")
@@ -66,7 +77,7 @@ class FleetHealth:
 
     async def __call__(self, scope, receive, send):
         if (scope.get("type") != "http" or scope.get("method") != "GET"
-                or scope.get("path") != "/health"):
+                or scope.get("path") not in HEALTH_PATHS):
             return await self.app(scope, receive, send)
 
         status: int | None = None
