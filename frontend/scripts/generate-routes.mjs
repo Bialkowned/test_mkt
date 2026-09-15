@@ -56,21 +56,54 @@ try {
 }
 const routeCfg = siteConfig.routeManifest || {};
 
-const CANDIDATES = ['src/App.tsx', 'src/App.jsx', 'src/App.js'];
-const appFile = routeCfg.appFile
-  ? path.join(webRoot, routeCfg.appFile)
-  : CANDIDATES.map((c) => path.join(webRoot, c)).find((p) => existsSync(p));
+/**
+ * A site with no URL routing at all.
+ *
+ * Some apps switch screens with React state rather than the address bar —
+ * HerculesMedia has eleven screens and every one of them renders at "/", and its
+ * sitemap contains exactly one URL. There is no router to read, so the tree walk
+ * finds nothing and without this the manifest is never written, which leaves
+ * server.mjs treating EVERY path as known: the soft 404 survives untouched.
+ *
+ * For these the correct manifest really is ["/"], and there is nothing to drift,
+ * because there is only one route to get wrong.
+ */
+if (routeCfg.singlePage) {
+  if (!existsSync(dist)) mkdirSync(dist, { recursive: true });
+  writeFileSync(path.join(dist, 'routes.json'), JSON.stringify(['/'], null, 2) + '\n');
+  console.log('  generate-routes: singlePage — wrote ["/"]; every other path 404s');
+  process.exit(0);
+}
 
-if (!appFile || !existsSync(appFile)) {
+const CANDIDATES = ['src/App.tsx', 'src/App.jsx', 'src/App.js'];
+
+/**
+ * More than one file can define routes, and missing one 404s real pages.
+ *
+ * VoyagePilot renders AppShellSSR.jsx on the server and AppShell.jsx on the
+ * client, while App.jsx is a third variant. /pricing exists in the two shells
+ * and NOT in App.jsx, so a manifest built from App.jsx alone made a real,
+ * server-rendered page answer 404. `appFiles` takes the union; `appFile` stays
+ * for the single-file case.
+ */
+const configured = routeCfg.appFiles || (routeCfg.appFile ? [routeCfg.appFile] : null);
+const appFiles = (
+  configured
+    ? configured.map((c) => path.join(webRoot, c))
+    : [CANDIDATES.map((c) => path.join(webRoot, c)).find((p) => existsSync(p))]
+).filter((p) => p && existsSync(p));
+
+if (appFiles.length === 0) {
   console.error(
     `  generate-routes: no router file (tried ${
-      routeCfg.appFile || CANDIDATES.join(', ')
+      (configured || CANDIDATES).join(', ')
     }); nothing written`,
   );
   process.exit(0);
 }
 
-const src = readFileSync(appFile, 'utf8');
+const appFile = appFiles[0];
+const sources = appFiles.map((f) => readFileSync(f, 'utf8'));
 
 /** Join a parent route prefix with a child's path the way React Router does. */
 function joinRoute(parent, child) {
@@ -147,7 +180,11 @@ function extractRoutes(text, basePath = '', routes = []) {
     const { attrs, selfClosing } = m;
     const parent = stack.length ? stack[stack.length - 1] : basePath;
 
-    const pm = attrs.match(/\bpath\s*=\s*"([^"]*)"/);
+    // JSX allows either quote style and engram uses path='/' throughout. Matching
+    // only double quotes found zero routes there and wrote no manifest at all,
+    // which silently left the soft 404 in place.
+    const pq = attrs.match(/\bpath\s*=\s*(?:"([^"]*)"|'([^']*)')/);
+    const pm = pq ? [pq[0], pq[1] !== undefined ? pq[1] : pq[2]] : null;
     const isIndex = /\bindex\b(?!\s*=)/.test(attrs);
 
     let full = null;
@@ -220,9 +257,10 @@ function extractTableRoutes(text) {
   return out;
 }
 
-const routes = [...new Set([...extractRoutes(src), ...extractTableRoutes(src)])]
-  .filter((p) => p.startsWith('/'))
-  .sort();
+// Per file, never concatenated: extractRoutes pairs opening and closing tags with
+// a stack, and joining sources would let that stack run across a file boundary.
+const collected = sources.flatMap((s) => [...extractRoutes(s), ...extractTableRoutes(s)]);
+const routes = [...new Set(collected)].filter((p) => p.startsWith('/')).sort();
 
 const MIN_ROUTES = Number.isFinite(routeCfg.minRoutes) ? routeCfg.minRoutes : 20;
 if (routes.length < MIN_ROUTES) {
