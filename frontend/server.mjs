@@ -158,15 +158,38 @@ function routeMatchers() {
 
 routeMatchers();
 
+/**
+ * Only a CONTENT-HASHED path may be immutable.
+ *
+ * The old rule was "HTML is never immutable, everything else is". That is true
+ * of /assets/*, where a changed file gets a new hashed name so the old URL can
+ * be cached forever. It is false for every file whose NAME stays the same while
+ * its CONTENT changes -- robots.txt, sitemap.xml, routes.json, the web manifest,
+ * favicons. Those were being sent max-age=31536000, immutable, so once an edge
+ * cached one it would not revalidate for a YEAR.
+ *
+ * That is not theoretical: panda's robots.txt was corrected at the origin and
+ * the edge served the old body for hours afterwards (cf-cache-status HIT,
+ * age 12791). Adding a query string returned the right file, which is precisely
+ * how it hides -- every manual spot-check looks fine.
+ */
+function cacheControlFor(filePath) {
+  if (filePath.endsWith('.html')) return 'no-cache, must-revalidate';
+  if (filePath.endsWith('sw.js')) return 'no-cache, must-revalidate';
+  // A hash in the filename is what makes "forever" safe.
+  const name = path.basename(filePath);
+  const hashed = /\.[0-9a-zA-Z_-]{8,}\.(js|mjs|css|woff2?|png|jpg|jpeg|svg|webp|avif|gif|ico)$/.test(name)
+    || /[\\/]assets[\\/]/.test(filePath);
+  if (hashed) return 'public, max-age=31536000, immutable';
+  // Named files that change in place: short TTL so an update is visible without
+  // a cache purge, but still cheap to serve.
+  return 'public, max-age=300, must-revalidate';
+}
+
 function serveFile(res, filePath, status = 200) {
-  // Hashed assets are immutable; HTML never is, or a deploy is invisible to
-  // anyone who has already visited.
-  const isHtml = filePath.endsWith('.html');
-  const isServiceWorker = filePath.endsWith('sw.js');
   res.writeHead(status, {
     'Content-Type': contentType(filePath),
-    'Cache-Control':
-      isHtml || isServiceWorker ? 'no-cache, must-revalidate' : 'public, max-age=31536000, immutable',
+    'Cache-Control': cacheControlFor(filePath),
   });
 
   // A read that fails after the headers are out — the file replaced mid-deploy,
