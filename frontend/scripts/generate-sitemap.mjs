@@ -85,9 +85,39 @@ const xml =
     .join('') +
   '</urlset>\n';
 
+/**
+ * Never SHRINK an existing sitemap.
+ *
+ * Route-derived URLs cannot include parameterised pages -- /city/:slug,
+ * /programs/:id -- because this script does not know the slugs. A site that
+ * generates its sitemap from real data therefore has a richer one, and
+ * overwriting it silently drops those pages from every crawler's view.
+ *
+ * That is not hypothetical: this overwrote 76 urls with 17 on one site and 90
+ * with 23 on another before the guard existed. If the file already lists more
+ * than this script produced, it is better and it stays.
+ */
+function wouldShrink(file) {
+  if (!existsSync(file)) return false;
+  try {
+    const existing = (readFileSync(file, 'utf8').match(/<loc>/g) || []).length;
+    return existing > urls.length;
+  } catch {
+    return false;
+  }
+}
+
 for (const dir of [path.join(webRoot, 'public'), dist]) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, 'sitemap.xml'), xml);
+  const target = path.join(dir, 'sitemap.xml');
+  if (wouldShrink(target)) {
+    console.log(
+      `  generate-sitemap: ${path.relative(webRoot, target)} already lists more ` +
+        `URLs than ${urls.length} route-derived ones; keeping it`,
+    );
+  } else {
+    writeFileSync(target, xml);
+  }
 
   const robotsPath = path.join(dir, 'robots.txt');
   const line = `Sitemap: ${origin}/sitemap.xml`;
