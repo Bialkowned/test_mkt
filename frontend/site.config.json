@@ -11,5 +11,6 @@
   },
   "routeManifest": {
     "minRoutes": 9
-  }
+  },
+  "siteUrl": "https://tester.bialkowned.com"
 }
