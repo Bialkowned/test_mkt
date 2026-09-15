@@ -13,14 +13,16 @@ stripe>=8.0.0
 httpx>=0.25.0
 aiofiles>=23.0.0
 
-# Transactional mail goes through the fleet SES shim: a package named `resend`,
-# version 1.1.0-bialkowned-ses, that keeps the resend.Emails.send({...}) signature
-# ~116 call sites already use and routes the message to SES instead.
+# Transactional mail goes through the fleet SES transport: `bialkowned-ses-transport`,
+# which installs a module named `resend` that keeps the resend.Emails.send({...})
+# signature ~145 call sites across the fleet already use, and routes to SES.
 #
-# It is deliberately NOT pinned here. The shim is not on PyPI, so `pip install resend`
-# fetches the real upstream SDK, overwrites the shim, and silently sends this program's
-# mail back to an API whose credentials were decommissioned when the fleet moved to
-# SES. Rebuilding this venv means reinstalling the shim by hand.
+# Referenced by path, and the distribution is deliberately NOT named `resend`. A bare
+# `resend` pin resolves against PyPI and installs the real upstream SDK, which overwrites
+# the transport and silently returns this program's mail to an API whose credentials were
+# decommissioned. 48 programs carried such a pin; this line is what replaced it.
 #
-# boto3 is what the shim uses to reach SES.
+# Source: _infra/ses-transport. It declares boto3 itself.
+bialkowned-ses-transport @ file:///home/pjb/Production/_infra/wheels/bialkowned_ses_transport-1.1.0-py3-none-any.whl
+
 boto3==1.43.79
