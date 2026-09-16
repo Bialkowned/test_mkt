@@ -26,3 +26,8 @@ aiofiles>=23.0.0
 bialkowned-ses-transport @ file:///home/pjb/Production/_infra/wheels/bialkowned_ses_transport-1.1.0-py3-none-any.whl
 
 boto3==1.43.79
+
+# The fleet Stripe webhook standard (source: _infra/stripe-webhook).
+# Declared here because it was NOT: a plain `pip install -r requirements.txt`
+# silently removed it, and the failure only surfaced at the next delivery.
+bialkowned-stripe-webhook @ file:///home/pjb/Production/_infra/wheels/bialkowned_stripe_webhook-1.7.1-py3-none-any.whl

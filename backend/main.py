@@ -2166,8 +2166,8 @@ async def stripe_webhook(request: Request):
     returned None and both fell out of the bottom as {"received": True}. The first is
     correct and the second is a real payment for work nobody is doing.
     """
-    from bialkowned_stripe_webhook import (AsyncMongoDedup, Skip, Unattributable,
-                                           WebhookError, handle_async)
+    from bialkowned_stripe_webhook import (AsyncMongoDedup, AsyncMongoPaidEvents, Skip,
+                                           Unattributable, WebhookError, handle_async)
 
     sig_header = request.headers.get("stripe-signature", "")
 
@@ -2248,6 +2248,7 @@ async def stripe_webhook(request: Request):
             resolve=resolve,
             fulfil=fulfil,
             dedup=AsyncMongoDedup(db["stripe_event_claims"]),
+            paid_events=AsyncMongoPaidEvents(db["paid_events"], "tester"),
             handled_events=frozenset({"payment_intent.succeeded", "account.updated"}),
         )
     except Unattributable as exc:
