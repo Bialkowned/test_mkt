@@ -17,6 +17,7 @@ import random
 import stripe
 import resend
 import logging
+import asyncio
 import aiofiles
 
 load_dotenv()
@@ -120,9 +121,38 @@ async def create_indexes():
     await bids_col.create_index("tester_email")
     await bids_col.create_index([("job_id", 1), ("tester_email", 1)])
     await bids_col.create_index("status")
+    await submissions_col.create_index("payout_status", sparse=True)
+    await jobs_col.create_index("unclaimed_refund_status", sparse=True)
     await submissions_col.create_index("bid_id", sparse=True)
     await submissions_col.create_index("item_id", sparse=True)
     await refresh_tokens_col.create_index("token", unique=True)
+
+
+PAYOUT_RECONCILE_SECONDS = int(os.getenv("PAYOUT_RECONCILE_SECONDS", "900"))
+
+
+@app.on_event("startup")
+async def start_payout_reconciler():
+    """Retry owed money on a timer.
+
+    A marker nobody reads is the same defect with extra steps, and an endpoint only helps
+    someone who thinks to call it. This is the part that runs whether or not anybody
+    remembers. It sleeps first, so importing the app costs nothing.
+    """
+    async def loop():
+        while True:
+            await asyncio.sleep(PAYOUT_RECONCILE_SECONDS)
+            try:
+                await reconcile_unpaid_money()
+            # Caught on purpose, and this one is load-bearing: an exception out of here
+            # kills the `while True` and the sweep stops forever, silently, which is the
+            # failure this whole mechanism exists to prevent. Nothing is granted or paid
+            # in this frame -- reconcile_unpaid_money() records its own outcomes per
+            # document -- so there is nothing to undo by continuing.
+            except Exception as e:
+                logger.error("payout reconcile sweep failed: %s", e)
+
+    asyncio.create_task(loop())
     await refresh_tokens_col.create_index("expires_at", expireAfterSeconds=0)
 
 # --- Pydantic Models ---
@@ -421,8 +451,95 @@ async def get_or_create_stripe_customer(user: dict) -> str:
     await users_col.update_one({"email": user["email"]}, {"$set": {"stripe_customer_id": customer.id}})
     return customer.id
 
+# --- Money this platform owes that Stripe would not move ---
+#
+# A transfer or a refund that fails is money owed to a real person. It used to be recorded
+# as a single log line: the tester's work was approved, the payout never arrived, and the
+# only trace was in a file nothing queries. These helpers write the failure onto the
+# document instead -- amount, reason and time -- so reconcile_unpaid_money() can find it
+# by query and try again.
+#
+# Every Stripe call below carries an idempotency key derived from the document id, so no
+# retry can pay the same person twice. That property is what makes a sweep safe; without
+# it, retrying would be more dangerous than the hole it closes.
+
+PAYOUT_PAID = "paid"
+PAYOUT_FAILED = "transfer_failed"
+REFUND_DONE = "refunded"
+REFUND_FAILED = "refund_failed"
+
+
+async def _transfer_to_tester(sub_id: str, job_id: str, tester_email: str,
+                              destination: str, payout: float) -> dict:
+    """Pay one approved submission. Returns fields to $set on it; never raises.
+
+    The caller decides when to write them, because the approval has to land whether or not
+    Stripe cooperated -- but a failure now leaves a row somebody can find.
+    """
+    try:
+        transfer = stripe.Transfer.create(
+            amount=int(round(payout * 100)),
+            currency="usd",
+            destination=destination,
+            metadata={
+                "submission_id": sub_id,
+                "job_id": job_id,
+                "tester_email": tester_email,
+            },
+            # Derived from the submission, so this transfer exists at most once however
+            # many times approve and the reconcile sweep both run it.
+            idempotency_key=f"ptb-transfer-{sub_id}",
+        )
+        return {
+            "stripe_transfer_id": transfer.id,
+            "payout_status": PAYOUT_PAID,
+            "payout_amount_owed": None,
+            "payout_error": None,
+        }
+    except Exception as e:
+        logger.error("Failed to transfer to tester %s: %s", tester_email, e)
+        return {
+            "payout_status": PAYOUT_FAILED,
+            "payout_amount_owed": payout,
+            "payout_error": str(e)[:500],
+            "payout_failed_at": datetime.utcnow().isoformat(),
+        }
+
+
+async def _refund_unclaimed(job: dict, refund_amount: int, unclaimed: int) -> dict:
+    """Refund unclaimed slots on one job. Returns fields to $set on it; never raises."""
+    try:
+        refund = stripe.Refund.create(
+            payment_intent=job["stripe_payment_intent_id"],
+            amount=refund_amount,
+            # This job's unclaimed slots are refunded at most once. There was no marker of
+            # any kind before and two call sites, so a second pass could refund twice.
+            idempotency_key="ptb-refund-unclaimed-{}".format(job["_id"]),
+        )
+        logger.info("Refunded %d cents for %d unclaimed slots on job %s",
+                    refund_amount, unclaimed, job["_id"])
+        return {
+            "unclaimed_refund_status": REFUND_DONE,
+            "unclaimed_refund_id": refund.id,
+            "unclaimed_refund_cents": refund_amount,
+            "unclaimed_refund_slots": unclaimed,
+            "unclaimed_refund_error": None,
+        }
+    except Exception as e:
+        logger.error("Failed to refund unclaimed slots for job %s: %s", job["_id"], e)
+        return {
+            "unclaimed_refund_status": REFUND_FAILED,
+            "unclaimed_refund_cents": refund_amount,
+            "unclaimed_refund_slots": unclaimed,
+            "unclaimed_refund_error": str(e)[:500],
+            "unclaimed_refund_failed_at": datetime.utcnow().isoformat(),
+        }
+
+
 async def check_and_refund_unclaimed_slots(job: dict):
     """After all submissions are resolved, refund unclaimed slot costs to builder."""
+    if job.get("unclaimed_refund_status") == REFUND_DONE:
+        return
     all_subs = await submissions_col.find({"job_id": job["_id"]}).to_list(50)
     resolved_statuses = {"approved", "rejected"}
     if not all_subs or not all(s["status"] in resolved_statuses for s in all_subs):
@@ -437,14 +554,62 @@ async def check_and_refund_unclaimed_slots(job: dict):
     if refund_amount <= 0:
         return
 
-    try:
-        stripe.Refund.create(
-            payment_intent=job["stripe_payment_intent_id"],
-            amount=refund_amount,
-        )
-        logger.info("Refunded %d cents for %d unclaimed slots on job %s", refund_amount, unclaimed, job["_id"])
-    except Exception as e:
-        logger.error("Failed to refund unclaimed slots for job %s: %s", job["_id"], e)
+    fields = await _refund_unclaimed(job, refund_amount, unclaimed)
+    await jobs_col.update_one({"_id": job["_id"]}, {"$set": fields})
+
+
+async def reconcile_unpaid_money(tester_email: str = None) -> dict:
+    """Find money that was owed and not sent, and try again.
+
+    This is the half that makes the markers worth writing -- a marker nothing reads is the
+    same defect with extra steps. Both queries are indexed; both retries are idempotent on
+    the Stripe side, so running this more often is never worse than running it once.
+    """
+    paid = refunded = 0
+    still_owed = []
+
+    sub_query = {"payout_status": PAYOUT_FAILED}
+    if tester_email:
+        sub_query["tester_email"] = tester_email
+
+    async for sub in submissions_col.find(sub_query):
+        if sub.get("stripe_transfer_id"):
+            # Paid by an earlier attempt; only the marker is stale.
+            await submissions_col.update_one(
+                {"_id": sub["_id"]},
+                {"$set": {"payout_status": PAYOUT_PAID, "payout_amount_owed": None}})
+            continue
+        tester = await users_col.find_one({"email": sub["tester_email"]})
+        owed = sub.get("payout_amount_owed") or 0
+        if not (tester and tester.get("stripe_connect_onboarded")
+                and tester.get("stripe_connect_id")) or owed <= 0:
+            # Nothing to send it to yet. Stays queryable rather than being cleared.
+            still_owed.append(sub["_id"])
+            continue
+        fields = await _transfer_to_tester(sub["_id"], sub["job_id"], sub["tester_email"],
+                                           tester["stripe_connect_id"], owed)
+        await submissions_col.update_one({"_id": sub["_id"]}, {"$set": fields})
+        if fields.get("payout_status") == PAYOUT_PAID:
+            paid += 1
+        else:
+            still_owed.append(sub["_id"])
+
+    if not tester_email:
+        async for job in jobs_col.find({"unclaimed_refund_status": REFUND_FAILED}):
+            cents = job.get("unclaimed_refund_cents") or 0
+            if cents <= 0 or not job.get("stripe_payment_intent_id"):
+                continue
+            fields = await _refund_unclaimed(job, cents,
+                                             job.get("unclaimed_refund_slots") or 0)
+            await jobs_col.update_one({"_id": job["_id"]}, {"$set": fields})
+            if fields.get("unclaimed_refund_status") == REFUND_DONE:
+                refunded += 1
+
+    if paid or refunded or still_owed:
+        logger.info("payout reconcile: %d paid, %d refunded, %d still owed",
+                    paid, refunded, len(still_owed))
+    return {"transfers_paid": paid, "refunds_completed": refunded,
+            "still_owed": still_owed}
 
 SERVICE_TYPES = [
     {
@@ -1609,21 +1774,14 @@ async def approve_submission(sub_id: str, action: ReviewAction, email: str = Dep
     payout = doc.get("payout_amount") or (job.get("payout_amount") if job else 0) or 0
 
     if tester and tester.get("stripe_connect_onboarded") and tester.get("stripe_connect_id") and payout > 0:
-        try:
-            transfer = stripe.Transfer.create(
-                amount=int(round(payout * 100)),
-                currency="usd",
-                destination=tester["stripe_connect_id"],
-                metadata={
-                    "submission_id": sub_id,
-                    "job_id": doc["job_id"],
-                    "tester_email": doc["tester_email"],
-                },
-            )
-            transfer_id = transfer.id
-            update_fields["stripe_transfer_id"] = transfer_id
-        except Exception as e:
-            logger.error("Failed to transfer to tester %s: %s", doc["tester_email"], e)
+        # A failed transfer must not block the approval -- the work was done and reviewed,
+        # and raising here would re-run the rating $inc above on the retry. So the failure
+        # is recorded ON the submission (amount owed, reason, time) and picked up by
+        # reconcile_unpaid_money(), instead of living only in the log.
+        update_fields.update(await _transfer_to_tester(
+            sub_id, doc["job_id"], doc["tester_email"],
+            tester["stripe_connect_id"], payout))
+        transfer_id = update_fields.get("stripe_transfer_id")
 
     await submissions_col.update_one({"_id": sub_id}, {"$set": update_fields})
 
@@ -1880,6 +2038,69 @@ async def update_video_tags(sub_id: str, body: VideoTagsUpdate, email: str = Dep
     tags = [t.model_dump() for t in body.video_tags]
     await submissions_col.update_one({"_id": sub_id}, {"$set": {"video_tags": tags}})
     return {"video_tags": tags}
+
+# --- Money owed (the query that makes a failed payout findable) ---
+
+@app.get("/api/payouts/owed")
+async def payouts_owed(email: str = Depends(verify_token)):
+    """Money this platform owes the caller, or owes on the caller's jobs.
+
+    This endpoint is the point of the markers. Before it, a transfer that Stripe refused
+    was a log line: nobody could ask "who have we not paid?" and get an answer. Testers
+    see what they are owed and why; builders see the same for their own jobs, plus
+    refunds still due to them.
+    """
+    user = await get_user_or_404(email)
+    unpaid, refunds = [], []
+
+    if user["role"] == "tester":
+        sub_filter = {"tester_email": email, "payout_status": PAYOUT_FAILED}
+    else:
+        sub_filter = {"builder_email": email, "payout_status": PAYOUT_FAILED}
+
+    async for sub in submissions_col.find(sub_filter):
+        unpaid.append({
+            "submission_id": sub["_id"],
+            "job_id": sub.get("job_id"),
+            "job_title": sub.get("job_title"),
+            "tester_email": sub.get("tester_email"),
+            "amount": sub.get("payout_amount_owed"),
+            "reason": sub.get("payout_error"),
+            "failed_at": sub.get("payout_failed_at"),
+        })
+
+    if user["role"] == "builder":
+        async for job in jobs_col.find({"builder_email": email,
+                                        "unclaimed_refund_status": REFUND_FAILED}):
+            refunds.append({
+                "job_id": job["_id"],
+                "job_title": job.get("title"),
+                "amount_cents": job.get("unclaimed_refund_cents"),
+                "reason": job.get("unclaimed_refund_error"),
+                "failed_at": job.get("unclaimed_refund_failed_at"),
+            })
+
+    return {"data": {"unpaid_payouts": unpaid, "refunds_pending": refunds},
+            "error": None, "message": "Success"}
+
+
+@app.post("/api/payouts/retry")
+async def payouts_retry(email: str = Depends(verify_token)):
+    """Re-attempt the caller's own failed payouts.
+
+    The usual cause of a failed transfer is Connect onboarding finished after the approval,
+    and the tester is the one who knows it is done. Runs the same reconcile routine the
+    sweep runs -- one definition, one idempotency key -- narrowed to this tester.
+    """
+    user = await get_user_or_404(email)
+    if user["role"] != "tester":
+        raise HTTPException(status_code=403, detail="Only testers can retry their own payouts")
+    if not (user.get("stripe_connect_onboarded") and user.get("stripe_connect_id")):
+        raise HTTPException(status_code=400,
+                            detail="Finish Stripe Connect onboarding before retrying payouts")
+    summary = await reconcile_unpaid_money(tester_email=email)
+    return {"data": summary, "error": None, "message": "Success"}
+
 
 # --- Stripe Connect ---
 
