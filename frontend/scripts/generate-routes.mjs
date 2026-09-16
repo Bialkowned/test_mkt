@@ -75,7 +75,7 @@ if (routeCfg.singlePage) {
   process.exit(0);
 }
 
-const CANDIDATES = ['src/App.tsx', 'src/App.jsx', 'src/App.js'];
+const CANDIDATES = ['src/App.tsx', 'src/App.tsx', 'src/App.js'];
 
 /**
  * More than one file can define routes, and missing one 404s real pages.

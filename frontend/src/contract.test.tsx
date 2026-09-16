@@ -32,8 +32,8 @@ const modules = import.meta.glob('./{pages,components,hooks}/**/*.{js,jsx,ts,tsx
  * asserted below to still match something, so it cannot rot into a lie.
  */
 const REQUIRES_REAL_CANVAS = [
-  './components/ScreenshotAnnotator.jsx',
-  './pages/JobDetail.jsx',
+  './components/ScreenshotAnnotator.tsx',
+  './pages/JobDetail.tsx',
 ]
 
 const all = Object.entries(modules).filter(([p]) => !p.includes('.test.') && !p.includes('.spec.'))
