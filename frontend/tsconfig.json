@@ -1,0 +1,50 @@
+{
+  "//": [
+    "Direct, not solution-style: a config with \"files\": [] plus",
+    "\"references\" checks ZERO files under `tsc -p`, and `tsc -b` does",
+    "nothing when already up to date -- so a broken gate and a healthy one",
+    "both report 0 files. With a direct include,",
+    "`tsc --noEmit --listFiles` always says what it read.",
+    "",
+    "strict is ON and the typecheck is NOT yet in `build`. The point of the",
+    "conversion is the check; turning strict off to make it pass would",
+    "produce TypeScript that guarantees nothing.",
+    "",
+    "Tests are included: an unchecked test file is where type errors hide."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": [
+      "vite/client",
+      "node",
+      "vitest/globals"
+    ],
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": true,
+    "checkJs": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
