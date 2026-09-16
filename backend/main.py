@@ -1933,38 +1933,110 @@ async def stripe_connect_status(email: str = Depends(verify_token)):
 
 @app.post("/api/stripe/webhook")
 async def stripe_webhook(request: Request):
-    payload = await request.body()
+    """Apply one verified Stripe event.
+
+    This is the backup for /confirm-payment: if the browser never comes back, the money
+    still has to land somewhere. Verification, replay protection and the
+    unattributable-payment contract come from the fleet standard.
+
+    What changed is how "nothing to do" is decided. The lookups used to carry the status in
+    the query -- `{"stripe_payment_intent_id": ..., "status": "pending_payment"}` -- so a
+    job confirm-payment had already opened and a payment matching no job at all both
+    returned None and both fell out of the bottom as {"received": True}. The first is
+    correct and the second is a real payment for work nobody is doing.
+    """
+    from bialkowned_stripe_webhook import (AsyncMongoDedup, Skip, Unattributable,
+                                           WebhookError, handle_async)
+
     sig_header = request.headers.get("stripe-signature", "")
 
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
-    except (ValueError, stripe.SignatureVerificationError):
-        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+    async def resolve(evt):
+        obj = evt.obj
 
-    if event["type"] == "payment_intent.succeeded":
-        pi = event["data"]["object"]
-        # Backup: mark job open if confirm-payment wasn't called (v1)
-        job = await jobs_col.find_one({"stripe_payment_intent_id": pi["id"], "status": "pending_payment"})
-        if job:
-            await jobs_col.update_one({"_id": job["_id"]}, {"$set": {"status": "open"}})
-            logger.info("Webhook: marked job %s as open (PI %s)", job["_id"], pi["id"])
+        if evt.type == "account.updated":
+            if not (obj.get("charges_enabled") or obj.get("payouts_enabled")):
+                raise Skip("Connect account is not enabled for charges or payouts yet")
+            user = await users_col.find_one({"stripe_connect_id": obj["id"]})
+            if user is None:
+                # Not a payment, and Stripe sends account.updated throughout onboarding --
+                # including before this program has a user row for the account. An
+                # unknown account is genuinely not ours rather than money we cannot place.
+                logger.warning("Webhook: Connect account %s has no user here", obj["id"])
+                raise Skip(f"no user for Connect account {obj['id']}")
+            return {"kind": "account", "user": user}
 
-        # Backup: mark bid payment as paid if confirm-payment wasn't called (v2)
-        bid = await bids_col.find_one({"stripe_payment_intent_id": pi["id"], "payment_status": "pending"})
-        if bid:
-            await bids_col.update_one({"_id": bid["_id"]}, {"$set": {"payment_status": "paid"}})
-            logger.info("Webhook: marked bid %s as paid (PI %s)", bid["_id"], pi["id"])
+        intent_id = obj["id"]
+        # Looked up by intent alone. With the status in the query, "already opened by
+        # confirm-payment" and "matches nothing at all" were the same empty result.
+        job = await jobs_col.find_one({"stripe_payment_intent_id": intent_id})
+        bid = await bids_col.find_one({"stripe_payment_intent_id": intent_id})
 
-    elif event["type"] == "account.updated":
-        account = event["data"]["object"]
-        if account.get("charges_enabled") or account.get("payouts_enabled"):
+        if job is None and bid is None:
+            logger.error("Webhook: payment intent %s matches no job and no bid", intent_id)
+            return None
+
+        pending_job = job if job and job.get("status") == "pending_payment" else None
+        pending_bid = bid if bid and bid.get("payment_status") == "pending" else None
+
+        if pending_job is None and pending_bid is None:
+            raise Skip(f"payment intent {intent_id} was already settled by "
+                       f"/confirm-payment")
+
+        return {"kind": "payment", "job": pending_job, "bid": pending_bid}
+
+    async def fulfil(evt, target):
+        if target["kind"] == "account":
+            user = target["user"]
             await users_col.update_one(
-                {"stripe_connect_id": account["id"]},
+                {"_id": user["_id"]},
                 {"$set": {"stripe_connect_onboarded": True}},
             )
-            logger.info("Webhook: marked Connect account %s as onboarded", account["id"])
+            logger.info("Webhook: marked Connect account %s as onboarded",
+                        evt.obj["id"])
+            return
 
-    return {"received": True}
+        intent_id = evt.obj["id"]
+
+        if target["job"] is not None:
+            job = target["job"]
+            result = await jobs_col.update_one(
+                {"_id": job["_id"]},
+                # The Stripe object that proves this was paid. The ERP reads this
+                # collection live and can only tie the job to cash if the row names it.
+                {"$set": {"status": "open", "payment_reference": intent_id}})
+            if not result.matched_count:
+                raise RuntimeError(
+                    f"job {job['_id']} disappeared while opening it for {intent_id}")
+            logger.info("Webhook: marked job %s as open (PI %s)", job["_id"], intent_id)
+
+        if target["bid"] is not None:
+            bid = target["bid"]
+            result = await bids_col.update_one(
+                {"_id": bid["_id"]},
+                {"$set": {"payment_status": "paid", "payment_reference": intent_id}})
+            if not result.matched_count:
+                raise RuntimeError(
+                    f"bid {bid['_id']} disappeared while marking it paid for {intent_id}")
+            logger.info("Webhook: marked bid %s as paid (PI %s)", bid["_id"], intent_id)
+
+    try:
+        result = await handle_async(
+            await request.body(),
+            sig_header,
+            STRIPE_WEBHOOK_SECRET,
+            resolve=resolve,
+            fulfil=fulfil,
+            dedup=AsyncMongoDedup(db["stripe_event_claims"]),
+            handled_events=frozenset({"payment_intent.succeeded", "account.updated"}),
+        )
+    except Unattributable as exc:
+        logger.error("Webhook: could not attribute event: %s", exc)
+        raise HTTPException(status_code=500,
+                            detail="Payment could not be attributed") from exc
+    except WebhookError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+
+    return {"received": True, **result.body}
 
 # --- Stripe Config (for frontend) ---
 
