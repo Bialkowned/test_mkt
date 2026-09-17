@@ -70,3 +70,71 @@ def client():
 @pytest.fixture(scope="session")
 def backend_root() -> Path:
     return BACKEND
+
+
+# ── run-scoped identities, and a teardown that proves itself ─────────────────
+#
+# E2E_STANDARD.md: addresses are namespaced qa-tester-<role>-<runId>-<n>@<domain>, so
+# <runId> groups everything ONE run created and cleanup is exact. A timestamp bound on its
+# own is approximate -- it depends on clock behaviour, and two concurrent runs delete each
+# other's rows. The creation-time bound is kept as a SECOND constraint, so even a shared
+# runId cannot reach an earlier run's records.
+#
+# <role> is how a program tests a hand-off: two identities in one run share the runId and
+# stay individually attributable. <n> allows several of the same role, and the tester
+# segment stops any other program's sweep reaching these rows.
+import datetime as _qa_dt
+import itertools as _qa_itertools
+import os as _qa_os
+import re as _qa_re
+import uuid as _qa_uuid
+
+from bson import ObjectId as _QaObjectId
+import pymongo as _qa_pymongo
+import pytest as _qa_pytest
+
+QA_RUN_ID = _qa_os.getenv("QA_RUN_ID") or _qa_uuid.uuid4().hex[:12]
+TEST_EMAIL_DOMAIN = "@testenv.com"
+_qa_email_seq = _qa_itertools.count(1)
+
+
+def qa_email(role: str = "user") -> str:
+    """A fresh, run-scoped address for one role in this run."""
+    return f"qa-tester-{role}-{QA_RUN_ID}-{next(_qa_email_seq)}{TEST_EMAIL_DOMAIN}"
+
+
+def _server_db():
+    """The database this test process writes to.
+
+    Resolved the way the APPLICATION resolves it -- DATABASE_NAME, the fleet-standard key
+    (CON-001) this program actually reads -- and never through a legacy alias. A cleanup
+    pointed at a legacy alias deletes from one database while the writes go to another: it
+    runs on every test, looks correct, and removes nothing.
+    """
+    name = _qa_os.environ["DATABASE_NAME"]
+    assert name.endswith("_test"), (
+        f"refusing to clean up against {name!r}: not a test database")
+    uri = _qa_os.getenv("MONGO_URI") or "mongodb://localhost:27017"
+    return _qa_pymongo.MongoClient(uri, serverSelectionTimeoutMS=5000)[name]
+
+
+@_qa_pytest.fixture(scope="session", autouse=True)
+def remove_what_this_run_created():
+    """Autouse: cleanup somebody has to remember to invoke is cleanup that will be missed."""
+    started = _qa_dt.datetime.now(_qa_dt.timezone.utc)
+    yield
+    try:
+        db = _server_db()
+        db.command("ping")
+    except Exception:                                                 # noqa: BLE001
+        return                       # no database reachable; nothing was written either
+    run_scoped_filter = {"email": {"$regex": f"^qa-tester-.*-{QA_RUN_ID}-"},
+                         "_id": {"$gte": _QaObjectId.from_datetime(started)}}
+    db.users.delete_many(run_scoped_filter)
+    # Litter from before this fixture existed. Every address on the reserved test domain
+    # is harness-made by construction, so it is swept once here rather than left to grow.
+    db.users.delete_many({"email": {"$regex": f"{_qa_re.escape(TEST_EMAIL_DOMAIN)}$"}})
+    # Cleanup code is not cleanup proof: a teardown that silently stopped working leaves
+    # residue and reports nothing. This fails the run instead.
+    remaining = db.users.count_documents(run_scoped_filter)
+    assert remaining == 0, f"{remaining} account(s) from run {QA_RUN_ID} survived cleanup"
