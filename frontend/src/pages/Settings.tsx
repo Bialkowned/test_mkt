@@ -71,7 +71,8 @@ export default function Settings({ user }) {
     try {
       const res = await axios.get('/api/stripe/connect/status')
       setConnectStatus(res.data)
-    } catch {
+    } catch (err) {
+      console.error('failed to load Stripe Connect status', err)
     } finally {
       setLoading(false)
     }

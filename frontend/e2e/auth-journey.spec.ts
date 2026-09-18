@@ -22,7 +22,6 @@ test.describe('3_community/8_Tester — authentication', () => {
   test('an account can be provisioned and then signed in', async ({ request }) => {
     const email = qaEmail('user')
     const password = qaPassword()
-    const handle = email.split('@')[0].slice(0, 30)
 
     const registered = await request.post(`${API}/api/auth/register`, {
       data: {

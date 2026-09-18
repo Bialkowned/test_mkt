@@ -66,7 +66,6 @@ export default function TesterProfile() {
 
   const initials = `${(profile.first_name || '')[0] || ''}${(profile.last_name || '')[0] || ''}`.toUpperCase()
   const hasReviews = profile.reviews?.length > 0
-  const hasStats = profile.completed_tests > 0 || profile.avg_rating > 0
 
   return (
     <div className="px-6 lg:px-10 py-10 max-w-[1100px] mx-auto">

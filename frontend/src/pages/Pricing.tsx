@@ -200,7 +200,7 @@ export default function Pricing({ user }) {
 
                   {/* Items */}
                   <div className="space-y-4">
-                    {role.items.map((item, ii) => (
+                    {role.items.map((item) => (
                       <div key={item.id} className="bg-gray-50 border border-gray-100 rounded-xl p-5 space-y-4">
                         {/* Title */}
                         <div className="flex items-start justify-between gap-3">

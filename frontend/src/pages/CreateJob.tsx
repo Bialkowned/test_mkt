@@ -33,7 +33,7 @@ function ServiceIcon({ type, className = 'w-5 h-5' }) {
   return null
 }
 
-export default function CreateJob({ user }) {
+export default function CreateJob() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [projects, setProjects] = useState([])

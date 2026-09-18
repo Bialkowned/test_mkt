@@ -99,7 +99,9 @@ export default function JobDetail({ user }) {
         try {
           const bidsRes = await axios.get(`/api/jobs/${jobId}/bids`)
           setBids(bidsRes.data)
-        } catch {}
+        } catch (err) {
+          console.error('failed to load bids', err)
+        }
       }
     } catch {
       setError('Failed to load job details')
@@ -602,7 +604,7 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
 
 // ============== Tester Bid Interface ==============
 
-function TesterBidInterface({ job, myBids, fetchData, setError, onWithdraw }) {
+function TesterBidInterface({ job, myBids, fetchData, setError }) {
   const [bidding, setBidding] = useState(null) // null, or { scope_role_id, scope_item_id, proposed_price }
   const [bidPrice, setBidPrice] = useState('')
   const [bidMessage, setBidMessage] = useState('')
@@ -1251,7 +1253,7 @@ function BidPaymentForm({ bid, onSuccess }) {
 
     try {
       onSuccess()
-    } catch (err) {
+    } catch {
       setPayError('Payment confirmed but failed to update. Refresh the page.')
     } finally {
       setPaying(false)
@@ -1855,7 +1857,7 @@ function TesterSubmission({ submission, onUpdate, setError }) {
 
 // ============== Video Tag Panel (shared) ==============
 
-function VideoTagPanel({ submission, onUpdate, setError, onSeek }) {
+function VideoTagPanel({ submission, setError, onSeek }) {
   const [tags, setTags] = useState(submission.video_tags || [])
   const [adding, setAdding] = useState(false)
   const [tagForm, setTagForm] = useState({ start: '', end: '', tag_type: 'bug', note: '' })

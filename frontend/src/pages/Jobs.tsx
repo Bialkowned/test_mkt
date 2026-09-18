@@ -78,14 +78,18 @@ export default function Jobs({ user }) {
       if (res.data.length > 0) {
         setForm((f) => ({ ...f, project_id: res.data[0].id }))
       }
-    } catch {}
+    } catch (err) {
+      console.error('failed to load projects', err)
+    }
   }
 
   const fetchBids = async () => {
     try {
       const res = await axios.get('/api/bids')
       setBids(res.data)
-    } catch {}
+    } catch (err) {
+      console.error('failed to load bids', err)
+    }
   }
 
   const handleCreate = async (e) => {

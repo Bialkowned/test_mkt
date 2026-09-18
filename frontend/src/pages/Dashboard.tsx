@@ -15,7 +15,7 @@ export default function Dashboard({ user }) {
     try {
       const res = await axios.get('/api/dashboard')
       setData(res.data)
-    } catch (err) {
+  } catch {
       setError('Failed to load dashboard')
     } finally {
       setLoading(false)

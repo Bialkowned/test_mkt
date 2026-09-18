@@ -363,7 +363,6 @@ export default function ScreenshotAnnotator({ isOpen, onClose, onComplete, submi
                 </Layer>
                 <Layer>
                   {allShapes.map((s) => {
-                    const isSelected = s.id === selectedId
                     const common = {
                       id: s.id,
                       key: s.id,
