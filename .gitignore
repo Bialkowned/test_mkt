@@ -118,3 +118,10 @@ test-results/
 .claude/
 **/test-results/
 **/auth-state.json
+
+# Prep gate (/sandy PREP-06)
+.env.*
+!*.example
+!*.template
+playwright-report/
+.claude-*cache.json
