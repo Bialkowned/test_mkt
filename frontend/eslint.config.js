@@ -25,7 +25,7 @@ export default defineConfig([
   // inside web/build/assets/index-*.js -- a minified bundle, not source. Both the
   // fleet's output names are listed because vite and the postbuild scripts have
   // disagreed about which one is real.
-  globalIgnores([
+  globalIgnores(['dist*/**', 'build*/**', '.dist-next/**', '.verify-build/**', '.next*/**', '**/._*', 
     '**/dist/**', '**/build/**', '**/coverage/**',
     '**/playwright-report/**', '**/test-results/**',
     '**/node_modules/**', '**/*.min.js',
