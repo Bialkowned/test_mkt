@@ -4,6 +4,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
+    // BUILD_DIR is the fleet knob: a verification build names another directory instead of overwriting the one being served.
+    build: { outDir: process.env.BUILD_DIR || 'dist' },
     preview: {
     },
     plugins: [react()],
