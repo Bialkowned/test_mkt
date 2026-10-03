@@ -189,7 +189,10 @@ function cacheControlFor(filePath) {
 function serveFile(res, filePath, status = 200) {
   res.writeHead(status, {
     'Content-Type': contentType(filePath),
-    'Cache-Control': cacheControlFor(filePath),
+    // A 404 is never cached. With no Cache-Control the edge applied its own default
+    // (4 hours), so a missing hashed bundle during one bad deploy stayed a 404 at
+    // Cloudflare for hours after the origin was fixed -- WeSpinta, 2026-10-03.
+    'Cache-Control': status === 404 ? 'no-store' : cacheControlFor(filePath),
   });
 
   // A read that fails after the headers are out — the file replaced mid-deploy,
@@ -277,7 +280,7 @@ const server = http.createServer((req, res) => {
   // A missing asset is a 404, not the app shell. Returning HTML for a stale
   // /assets/*.js is what turned a cache miss into an unreadable parse error.
   if (path.extname(requestPath)) {
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
     return res.end('Not found');
   }
 
