@@ -9,8 +9,7 @@
 
 export default async () => {
   if (!process.env.E2E_RUN_ID) {
-    process.env.E2E_RUN_ID =
-      `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    process.env.E2E_RUN_ID = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   }
-  process.env.E2E_PROGRAM = process.env.E2E_PROGRAM || 'tester';
+  process.env.E2E_PROGRAM = process.env.E2E_PROGRAM || "tester";
 };

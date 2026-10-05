@@ -1,32 +1,38 @@
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
-import axios from 'axios'
-import { setAccessToken, setOnAuthFailure, tryRefresh } from './api'
-import Home from './pages/Home'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Dashboard from './pages/Dashboard'
-import Projects from './pages/Projects'
-import Jobs from './pages/Jobs'
-import JobDetail from './pages/JobDetail'
-import Onboarding from './pages/Onboarding'
-import Settings from './pages/Settings'
-import Pricing from './pages/Pricing'
-import TesterProfile from './pages/TesterProfile'
-import CreateJob from './pages/CreateJob'
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Link,
+  Navigate,
+} from "react-router-dom";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { setAccessToken, setOnAuthFailure, tryRefresh } from "./api";
+import Home from "./pages/Home";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import Projects from "./pages/Projects";
+import Jobs from "./pages/Jobs";
+import JobDetail from "./pages/JobDetail";
+import Onboarding from "./pages/Onboarding";
+import Settings from "./pages/Settings";
+import Pricing from "./pages/Pricing";
+import TesterProfile from "./pages/TesterProfile";
+import CreateJob from "./pages/CreateJob";
 
 function ChatBubble() {
-  const [open, setOpen] = useState(false)
-  const [message, setMessage] = useState('')
-  const [sent, setSent] = useState(false)
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [sent, setSent] = useState(false);
 
   const handleSend = (e) => {
-    e.preventDefault()
-    if (!message.trim()) return
-    setSent(true)
-    setMessage('')
-    setTimeout(() => setSent(false), 3000)
-  }
+    e.preventDefault();
+    if (!message.trim()) return;
+    setSent(true);
+    setMessage("");
+    setTimeout(() => setSent(false), 3000);
+  };
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
@@ -34,11 +40,30 @@ function ChatBubble() {
         <div className="mb-3 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
           <div className="bg-primary-600 px-5 py-4 flex items-center justify-between">
             <div>
-              <p className="text-white font-semibold text-sm">PeerTest Support</p>
-              <p className="text-primary-200 text-xs">We typically reply within a few hours</p>
+              <p className="text-white font-semibold text-sm">
+                PeerTest Support
+              </p>
+              <p className="text-primary-200 text-xs">
+                We typically reply within a few hours
+              </p>
             </div>
-            <button onClick={() => setOpen(false)} className="text-primary-200 hover:text-white">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            <button
+              onClick={() => setOpen(false)}
+              className="text-primary-200 hover:text-white"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
           <div className="px-5 py-4">
@@ -48,7 +73,9 @@ function ChatBubble() {
               </div>
             ) : (
               <form onSubmit={handleSend} className="space-y-3">
-                <p className="text-sm text-gray-600">Have a question or running into an issue? Drop us a message.</p>
+                <p className="text-sm text-gray-600">
+                  Have a question or running into an issue? Drop us a message.
+                </p>
                 <textarea
                   rows={3}
                   placeholder="Type your message..."
@@ -73,43 +100,66 @@ function ChatBubble() {
         className="w-14 h-14 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105"
       >
         {open ? (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         ) : (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
         )}
       </button>
     </div>
-  )
+  );
 }
 
 function App() {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setOnAuthFailure(() => setUser(null))
+    setOnAuthFailure(() => setUser(null));
     tryRefresh().then((data) => {
-      if (data) setUser(data.user)
-      setLoading(false)
-    })
-  }, [])
+      if (data) setUser(data.user);
+      setLoading(false);
+    });
+  }, []);
 
   const handleLogout = async () => {
     try {
-      await axios.post('/api/auth/logout')
+      await axios.post("/api/auth/logout");
     } catch {
       // Logout endpoint may fail if token already expired — that's fine
     }
-    setAccessToken(null)
-    setUser(null)
-  }
+    setAccessToken(null);
+    setUser(null);
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-xl">Loading...</div>
       </div>
-    )
+    );
   }
 
   return (
@@ -123,32 +173,50 @@ function App() {
                 <Link to="/" className="text-2xl font-bold text-primary-600">
                   PeerTest Hub
                 </Link>
-                {(!user || user.role === 'builder') && (
-                  <Link to="/pricing" className="ml-6 text-gray-700 hover:text-gray-900 px-3 py-2">
+                {(!user || user.role === "builder") && (
+                  <Link
+                    to="/pricing"
+                    className="ml-6 text-gray-700 hover:text-gray-900 px-3 py-2"
+                  >
                     Pricing
                   </Link>
                 )}
                 {user && (
                   <div className="ml-10 flex space-x-4">
-                    <Link to="/dashboard" className="text-gray-700 hover:text-gray-900 px-3 py-2">
+                    <Link
+                      to="/dashboard"
+                      className="text-gray-700 hover:text-gray-900 px-3 py-2"
+                    >
                       Dashboard
                     </Link>
-                    {user.role === 'builder' && (
+                    {user.role === "builder" && (
                       <>
-                        <Link to="/projects" className="text-gray-700 hover:text-gray-900 px-3 py-2">
+                        <Link
+                          to="/projects"
+                          className="text-gray-700 hover:text-gray-900 px-3 py-2"
+                        >
                           Projects
                         </Link>
-                        <Link to="/jobs" className="text-gray-700 hover:text-gray-900 px-3 py-2">
+                        <Link
+                          to="/jobs"
+                          className="text-gray-700 hover:text-gray-900 px-3 py-2"
+                        >
                           My Jobs
                         </Link>
                       </>
                     )}
-                    {user.role === 'tester' && (
+                    {user.role === "tester" && (
                       <>
-                        <Link to="/jobs" className="text-gray-700 hover:text-gray-900 px-3 py-2">
+                        <Link
+                          to="/jobs"
+                          className="text-gray-700 hover:text-gray-900 px-3 py-2"
+                        >
                           Available Jobs
                         </Link>
-                        <Link to="/settings" className="text-gray-700 hover:text-gray-900 px-3 py-2">
+                        <Link
+                          to="/settings"
+                          className="text-gray-700 hover:text-gray-900 px-3 py-2"
+                        >
                           Settings
                         </Link>
                       </>
@@ -171,7 +239,10 @@ function App() {
                   </>
                 ) : (
                   <>
-                    <Link to="/login" className="text-gray-700 hover:text-gray-900 px-3 py-2">
+                    <Link
+                      to="/login"
+                      className="text-gray-700 hover:text-gray-900 px-3 py-2"
+                    >
                       Login
                     </Link>
                     <Link
@@ -192,27 +263,76 @@ function App() {
           <Routes>
             <Route path="/pricing" element={<Pricing user={user} />} />
             <Route path="/testers/:slug" element={<TesterProfile />} />
-            <Route path="*" element={<Onboarding user={user} setUser={setUser} />} />
+            <Route
+              path="*"
+              element={<Onboarding user={user} setUser={setUser} />}
+            />
           </Routes>
         ) : (
           <Routes>
             <Route path="/" element={<Home user={user} />} />
             <Route path="/pricing" element={<Pricing user={user} />} />
             <Route path="/testers/:slug" element={<TesterProfile />} />
-            <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login setUser={setUser} />} />
-            <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register setUser={setUser} />} />
-            <Route path="/dashboard" element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} />
-            <Route path="/projects" element={user ? <Projects user={user} /> : <Navigate to="/login" />} />
-            <Route path="/jobs" element={user ? <Jobs user={user} /> : <Navigate to="/login" />} />
-            <Route path="/jobs/create" element={user ? <CreateJob user={user} /> : <Navigate to="/login" />} />
-            <Route path="/jobs/:jobId" element={user ? <JobDetail user={user} /> : <Navigate to="/login" />} />
-            <Route path="/settings" element={user ? <Settings user={user} /> : <Navigate to="/login" />} />
+            <Route
+              path="/login"
+              element={
+                user ? (
+                  <Navigate to="/dashboard" />
+                ) : (
+                  <Login setUser={setUser} />
+                )
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                user ? (
+                  <Navigate to="/dashboard" />
+                ) : (
+                  <Register setUser={setUser} />
+                )
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                user ? <Dashboard user={user} /> : <Navigate to="/login" />
+              }
+            />
+            <Route
+              path="/projects"
+              element={
+                user ? <Projects user={user} /> : <Navigate to="/login" />
+              }
+            />
+            <Route
+              path="/jobs"
+              element={user ? <Jobs user={user} /> : <Navigate to="/login" />}
+            />
+            <Route
+              path="/jobs/create"
+              element={
+                user ? <CreateJob user={user} /> : <Navigate to="/login" />
+              }
+            />
+            <Route
+              path="/jobs/:jobId"
+              element={
+                user ? <JobDetail user={user} /> : <Navigate to="/login" />
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                user ? <Settings user={user} /> : <Navigate to="/login" />
+              }
+            />
           </Routes>
         )}
         <ChatBubble />
       </div>
     </Router>
-  )
+  );
 }
 
-export default App
+export default App;

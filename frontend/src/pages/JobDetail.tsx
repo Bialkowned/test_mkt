@@ -1,124 +1,133 @@
-import { useState, useEffect, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import axios from 'axios'
-import { loadStripe } from '@stripe/stripe-js'
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import useRrwebRecorder from '../hooks/useRrwebRecorder'
-import RrwebReplayPlayer from '../components/RrwebReplayPlayer'
-import ScreenshotAnnotator from '../components/ScreenshotAnnotator'
+import { useState, useEffect, useRef } from "react";
+import { useParams, Link } from "react-router-dom";
+import axios from "axios";
+import { loadStripe } from "@stripe/stripe-js";
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
+import useRrwebRecorder from "../hooks/useRrwebRecorder";
+import RrwebReplayPlayer from "../components/RrwebReplayPlayer";
+import ScreenshotAnnotator from "../components/ScreenshotAnnotator";
 
-const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
-const stripePromise = stripeKey ? loadStripe(stripeKey) : null
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
-const SEVERITIES = ['low', 'medium', 'high', 'critical']
+const SEVERITIES = ["low", "medium", "high", "critical"];
 const severityColors = {
-  low: 'bg-gray-100 text-gray-600',
-  medium: 'bg-yellow-100 text-yellow-700',
-  high: 'bg-orange-100 text-orange-700',
-  critical: 'bg-red-100 text-red-700',
-}
+  low: "bg-gray-100 text-gray-600",
+  medium: "bg-yellow-100 text-yellow-700",
+  high: "bg-orange-100 text-orange-700",
+  critical: "bg-red-100 text-red-700",
+};
 
 const TAG_COLORS = {
-  'bug': 'bg-red-100 text-red-700 border-red-200',
-  'ux-issue': 'bg-amber-100 text-amber-700 border-amber-200',
-  'training-clip': 'bg-primary-100 text-primary-700 border-primary-200',
-  'marketing-clip': 'bg-primary-100 text-primary-700 border-primary-200',
-}
+  bug: "bg-red-100 text-red-700 border-red-200",
+  "ux-issue": "bg-amber-100 text-amber-700 border-amber-200",
+  "training-clip": "bg-primary-100 text-primary-700 border-primary-200",
+  "marketing-clip": "bg-primary-100 text-primary-700 border-primary-200",
+};
 
 const SERVICE_COLORS = {
-  test: 'bg-primary-100 text-primary-700',
-  record: 'bg-red-100 text-red-700',
-  document: 'bg-primary-100 text-primary-700',
-  voiceover: 'bg-purple-100 text-purple-700',
-}
+  test: "bg-primary-100 text-primary-700",
+  record: "bg-red-100 text-red-700",
+  document: "bg-primary-100 text-primary-700",
+  voiceover: "bg-purple-100 text-purple-700",
+};
 
 function formatDurationBadge(seconds) {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m}m ${s}s`
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s}s`;
 }
 
 function SessionBar({ duration }) {
-  const m = Math.floor(duration / 60)
-  const s = duration % 60
+  const m = Math.floor(duration / 60);
+  const s = duration % 60;
   return (
     <div className="sticky top-0 z-20 bg-gray-900 text-white px-4 py-2.5 rounded-lg mb-4 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
         <span className="text-sm font-medium">Session Recording</span>
       </div>
-      <span className="text-sm font-mono">{m}:{s.toString().padStart(2, '0')}</span>
+      <span className="text-sm font-mono">
+        {m}:{s.toString().padStart(2, "0")}
+      </span>
     </div>
-  )
+  );
 }
 
 function formatTime(seconds) {
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 function parseTimeToSeconds(str) {
-  const parts = str.split(':').map(Number)
+  const parts = str.split(":").map(Number);
   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-    return parts[0] * 60 + parts[1]
+    return parts[0] * 60 + parts[1];
   }
-  return NaN
+  return NaN;
 }
 
 export default function JobDetail({ user }) {
-  const { jobId } = useParams()
-  const [job, setJob] = useState(null)
-  const [submissions, setSubmissions] = useState([])
-  const [bids, setBids] = useState([])
-  const [mySubmission, setMySubmission] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const { jobId } = useParams();
+  const [job, setJob] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+  const [bids, setBids] = useState([]);
+  const [mySubmission, setMySubmission] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const isV2 = job?.version === 2 || job?.roles
+  const isV2 = job?.version === 2 || job?.roles;
 
-  useEffect(() => { fetchData() }, [jobId])
+  useEffect(() => {
+    fetchData();
+  }, [jobId]);
 
   const fetchData = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const [jobRes, subsRes] = await Promise.all([
         axios.get(`/api/jobs/${jobId}`),
         axios.get(`/api/submissions?job_id=${jobId}`),
-      ])
-      setJob(jobRes.data)
-      setSubmissions(subsRes.data)
+      ]);
+      setJob(jobRes.data);
+      setSubmissions(subsRes.data);
 
-      if (user.role === 'tester') {
-        const mine = subsRes.data.find((s) => s.tester_email === user.email)
-        if (mine) setMySubmission(mine)
+      if (user.role === "tester") {
+        const mine = subsRes.data.find((s) => s.tester_email === user.email);
+        if (mine) setMySubmission(mine);
       }
 
       // Fetch bids for v2 jobs
       if (jobRes.data.version === 2 || jobRes.data.roles) {
         try {
-          const bidsRes = await axios.get(`/api/jobs/${jobId}/bids`)
-          setBids(bidsRes.data)
+          const bidsRes = await axios.get(`/api/jobs/${jobId}/bids`);
+          setBids(bidsRes.data);
         } catch (err) {
-          console.error('failed to load bids', err)
+          console.error("failed to load bids", err);
         }
       }
     } catch {
-      setError('Failed to load job details')
+      setError("Failed to load job details");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleClaim = async () => {
     try {
-      const res = await axios.post(`/api/jobs/${jobId}/claim`)
-      setJob(res.data.job)
-      fetchData()
+      const res = await axios.post(`/api/jobs/${jobId}/claim`);
+      setJob(res.data.job);
+      fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to claim job')
+      setError(err.response?.data?.detail || "Failed to claim job");
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -129,24 +138,31 @@ export default function JobDetail({ user }) {
           <div className="h-40 bg-gray-200 rounded-lg" />
         </div>
       </div>
-    )
+    );
   }
 
   if (error && !job) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>
-        <Link to="/jobs" className="text-primary-600 hover:text-primary-700 font-medium mt-4 inline-block">Back to Jobs</Link>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+        <Link
+          to="/jobs"
+          className="text-primary-600 hover:text-primary-700 font-medium mt-4 inline-block"
+        >
+          Back to Jobs
+        </Link>
       </div>
-    )
+    );
   }
 
   const statusColors = {
-    pending_payment: 'bg-orange-100 text-orange-700',
-    open: 'bg-primary-100 text-primary-700',
-    in_progress: 'bg-amber-100 text-amber-700',
-    completed: 'bg-primary-100 text-primary-700',
-  }
+    pending_payment: "bg-orange-100 text-orange-700",
+    open: "bg-primary-100 text-primary-700",
+    in_progress: "bg-amber-100 text-amber-700",
+    completed: "bg-primary-100 text-primary-700",
+  };
 
   if (isV2) {
     return (
@@ -160,57 +176,93 @@ export default function JobDetail({ user }) {
         fetchData={fetchData}
         statusColors={statusColors}
       />
-    )
+    );
   }
 
   // V1 job detail (original)
-  const isClaimed = job.assigned_testers?.includes(user.email)
-  const canClaim = user.role === 'tester' && !isClaimed && (job.status === 'open' || job.status === 'in_progress') && (job.assigned_testers?.length || 0) < job.max_testers
+  const isClaimed = job.assigned_testers?.includes(user.email);
+  const canClaim =
+    user.role === "tester" &&
+    !isClaimed &&
+    (job.status === "open" || job.status === "in_progress") &&
+    (job.assigned_testers?.length || 0) < job.max_testers;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <Link to="/jobs" className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-block">Back to Jobs</Link>
+      <Link
+        to="/jobs"
+        className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-block"
+      >
+        Back to Jobs
+      </Link>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+          {error}
+        </div>
+      )}
 
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
-            {job.project_name && <p className="text-gray-500 mt-1">{job.project_name}</p>}
+            {job.project_name && (
+              <p className="text-gray-500 mt-1">{job.project_name}</p>
+            )}
           </div>
-          <span className={`text-xs font-medium px-3 py-1 rounded-full ${statusColors[job.status] || 'bg-gray-100 text-gray-600'}`}>
-            {job.status.replace('_', ' ')}
+          <span
+            className={`text-xs font-medium px-3 py-1 rounded-full ${statusColors[job.status] || "bg-gray-100 text-gray-600"}`}
+          >
+            {job.status.replace("_", " ")}
           </span>
         </div>
-        <p className="text-gray-700 whitespace-pre-wrap mb-6">{job.description}</p>
+        <p className="text-gray-700 whitespace-pre-wrap mb-6">
+          {job.description}
+        </p>
 
         {(job.test_url || job.test_credentials) && (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 space-y-3">
             {job.test_url && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Test Site</label>
-                <a href={job.test_url} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-700 font-medium text-sm break-all">{job.test_url}</a>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                  Test Site
+                </label>
+                <a
+                  href={job.test_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-600 hover:text-primary-700 font-medium text-sm break-all"
+                >
+                  {job.test_url}
+                </a>
               </div>
             )}
             {job.test_credentials && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Login Credentials</label>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                  Login Credentials
+                </label>
                 <div className="text-sm space-y-1">
                   {job.test_credentials.email && (
                     <div className="flex items-center gap-2">
                       <span className="text-gray-500 w-16">Email:</span>
-                      <code className="bg-white border border-gray-200 px-2 py-0.5 rounded text-gray-900 font-mono text-xs select-all">{job.test_credentials.email}</code>
+                      <code className="bg-white border border-gray-200 px-2 py-0.5 rounded text-gray-900 font-mono text-xs select-all">
+                        {job.test_credentials.email}
+                      </code>
                     </div>
                   )}
                   {job.test_credentials.password && (
                     <div className="flex items-center gap-2">
                       <span className="text-gray-500 w-16">Password:</span>
-                      <code className="bg-white border border-gray-200 px-2 py-0.5 rounded text-gray-900 font-mono text-xs select-all">{job.test_credentials.password}</code>
+                      <code className="bg-white border border-gray-200 px-2 py-0.5 rounded text-gray-900 font-mono text-xs select-all">
+                        {job.test_credentials.password}
+                      </code>
                     </div>
                   )}
                   {job.test_credentials.notes && (
-                    <p className="text-gray-600 text-xs mt-1">{job.test_credentials.notes}</p>
+                    <p className="text-gray-600 text-xs mt-1">
+                      {job.test_credentials.notes}
+                    </p>
                   )}
                 </div>
               </div>
@@ -219,138 +271,225 @@ export default function JobDetail({ user }) {
         )}
 
         <div className="flex items-center gap-6 text-sm text-gray-500">
-          <span><strong className="text-gray-900">${job.payout_amount}</strong> per tester</span>
+          <span>
+            <strong className="text-gray-900">${job.payout_amount}</strong> per
+            tester
+          </span>
           <span>{job.estimated_time_minutes} min estimated</span>
-          <span>{job.assigned_testers?.length || 0} / {job.max_testers} testers</span>
+          <span>
+            {job.assigned_testers?.length || 0} / {job.max_testers} testers
+          </span>
         </div>
 
-        {user.role === 'builder' && job.total_charge > 0 && (
+        {user.role === "builder" && job.total_charge > 0 && (
           <div className="mt-5 bg-gray-50 rounded-lg p-4 text-sm space-y-1.5">
-            <div className="flex justify-between text-gray-600"><span>Payout per tester</span><span>${job.payout_amount.toFixed(2)}</span></div>
-            <div className="flex justify-between text-gray-600"><span>Testers</span><span>{job.max_testers}</span></div>
-            <div className="flex justify-between text-gray-600"><span>Platform fee (15%)</span><span>${job.platform_fee.toFixed(2)}</span></div>
-            <div className="flex justify-between font-semibold text-gray-900 pt-1.5 border-t border-gray-200"><span>Total charged</span><span>${job.total_charge.toFixed(2)}</span></div>
+            <div className="flex justify-between text-gray-600">
+              <span>Payout per tester</span>
+              <span>${job.payout_amount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Testers</span>
+              <span>{job.max_testers}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Platform fee (15%)</span>
+              <span>${job.platform_fee.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between font-semibold text-gray-900 pt-1.5 border-t border-gray-200">
+              <span>Total charged</span>
+              <span>${job.total_charge.toFixed(2)}</span>
+            </div>
           </div>
         )}
 
         {canClaim && (
-          <button onClick={handleClaim} className="mt-6 px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium">
+          <button
+            onClick={handleClaim}
+            className="mt-6 px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+          >
             Claim This Job
           </button>
         )}
       </div>
 
-      {user.role === 'builder' && (
+      {user.role === "builder" && (
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Submissions ({submissions.length})</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">
+            Submissions ({submissions.length})
+          </h2>
           {submissions.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-              <p className="text-gray-500">No submissions yet. Waiting for testers to claim and submit feedback.</p>
+              <p className="text-gray-500">
+                No submissions yet. Waiting for testers to claim and submit
+                feedback.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
               {submissions.map((sub) => (
-                <BuilderSubmissionCard key={sub.id} submission={sub} onUpdate={fetchData} setError={setError} />
+                <BuilderSubmissionCard
+                  key={sub.id}
+                  submission={sub}
+                  onUpdate={fetchData}
+                  setError={setError}
+                />
               ))}
             </div>
           )}
         </div>
       )}
 
-      {user.role === 'tester' && isClaimed && mySubmission && (
-        <TesterSubmission submission={mySubmission} onUpdate={fetchData} setError={setError} />
+      {user.role === "tester" && isClaimed && mySubmission && (
+        <TesterSubmission
+          submission={mySubmission}
+          onUpdate={fetchData}
+          setError={setError}
+        />
       )}
     </div>
-  )
+  );
 }
 
 // ============== V2 Job Detail ==============
 
-function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData, statusColors }) {
-  const [expandedRoles, setExpandedRoles] = useState(new Set(job.roles?.map((r) => r.id) || []))
-  const [paymentBid, setPaymentBid] = useState(null)
+function V2JobDetail({
+  job,
+  user,
+  submissions,
+  bids,
+  error,
+  setError,
+  fetchData,
+  statusColors,
+}) {
+  const [expandedRoles, setExpandedRoles] = useState(
+    new Set(job.roles?.map((r) => r.id) || []),
+  );
+  const [paymentBid, setPaymentBid] = useState(null);
 
   const toggleRole = (roleId) => {
-    const next = new Set(expandedRoles)
-    if (next.has(roleId)) next.delete(roleId)
-    else next.add(roleId)
-    setExpandedRoles(next)
-  }
+    const next = new Set(expandedRoles);
+    if (next.has(roleId)) next.delete(roleId);
+    else next.add(roleId);
+    setExpandedRoles(next);
+  };
 
-  const myBids = bids.filter((b) => b.tester_email === user.email)
-  const isAssigned = job.assigned_testers?.includes(user.email)
-  const mySubmissions = submissions.filter((s) => s.tester_email === user.email)
+  const myBids = bids.filter((b) => b.tester_email === user.email);
+  const isAssigned = job.assigned_testers?.includes(user.email);
+  const mySubmissions = submissions.filter(
+    (s) => s.tester_email === user.email,
+  );
 
   const handleAcceptBid = async (bid) => {
-    setError('')
+    setError("");
     try {
-      const res = await axios.post(`/api/bids/${bid.id}/accept`)
-      setPaymentBid({ ...res.data, client_secret: res.data.client_secret })
+      const res = await axios.post(`/api/bids/${bid.id}/accept`);
+      setPaymentBid({ ...res.data, client_secret: res.data.client_secret });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to accept bid')
+      setError(err.response?.data?.detail || "Failed to accept bid");
     }
-  }
+  };
 
   const handleRejectBid = async (bidId) => {
-    if (!confirm('Reject this bid?')) return
+    if (!confirm("Reject this bid?")) return;
     try {
-      await axios.post(`/api/bids/${bidId}/reject`)
-      fetchData()
+      await axios.post(`/api/bids/${bidId}/reject`);
+      fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to reject bid')
+      setError(err.response?.data?.detail || "Failed to reject bid");
     }
-  }
+  };
 
   const handleWithdrawBid = async (bidId) => {
-    if (!confirm('Withdraw your bid?')) return
+    if (!confirm("Withdraw your bid?")) return;
     try {
-      await axios.post(`/api/bids/${bidId}/withdraw`)
-      fetchData()
+      await axios.post(`/api/bids/${bidId}/withdraw`);
+      fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to withdraw bid')
+      setError(err.response?.data?.detail || "Failed to withdraw bid");
     }
-  }
+  };
 
   const handlePaymentSuccess = async (bid) => {
     try {
-      await axios.post(`/api/bids/${bid.id}/confirm-payment`)
-      setPaymentBid(null)
-      fetchData()
+      await axios.post(`/api/bids/${bid.id}/confirm-payment`);
+      setPaymentBid(null);
+      fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Payment confirmed but failed to create submissions. Refresh the page.')
+      setError(
+        err.response?.data?.detail ||
+          "Payment confirmed but failed to create submissions. Refresh the page.",
+      );
     }
-  }
+  };
 
   // Payment overlay
   if (paymentBid?.client_secret) {
     return (
       <div className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <button onClick={() => { setPaymentBid(null); fetchData() }} className="text-sm text-gray-500 hover:text-gray-700 mb-6 inline-block">
+        <button
+          onClick={() => {
+            setPaymentBid(null);
+            fetchData();
+          }}
+          className="text-sm text-gray-500 hover:text-gray-700 mb-6 inline-block"
+        >
           Back to Job
         </button>
         <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-1">Complete Payment</h2>
-          <p className="text-gray-500 text-sm mb-5">Pay to accept <strong>{paymentBid.tester_name}</strong>'s bid</p>
+          <h2 className="text-xl font-bold text-gray-900 mb-1">
+            Complete Payment
+          </h2>
+          <p className="text-gray-500 text-sm mb-5">
+            Pay to accept <strong>{paymentBid.tester_name}</strong>'s bid
+          </p>
 
           <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-600">Bid amount</span><span>${paymentBid.bid_price?.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-600">Platform fee (15%)</span><span>${paymentBid.platform_fee?.toFixed(2)}</span></div>
-            <div className="flex justify-between font-semibold text-gray-900 pt-2 border-t border-gray-200"><span>Total</span><span>${paymentBid.total_charge?.toFixed(2)}</span></div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Bid amount</span>
+              <span>${paymentBid.bid_price?.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Platform fee (15%)</span>
+              <span>${paymentBid.platform_fee?.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between font-semibold text-gray-900 pt-2 border-t border-gray-200">
+              <span>Total</span>
+              <span>${paymentBid.total_charge?.toFixed(2)}</span>
+            </div>
           </div>
 
-          <Elements stripe={stripePromise} options={{ clientSecret: paymentBid.client_secret, appearance: { theme: 'stripe' } }}>
-            <BidPaymentForm bid={paymentBid} onSuccess={() => handlePaymentSuccess(paymentBid)} />
+          <Elements
+            stripe={stripePromise}
+            options={{
+              clientSecret: paymentBid.client_secret,
+              appearance: { theme: "stripe" },
+            }}
+          >
+            <BidPaymentForm
+              bid={paymentBid}
+              onSuccess={() => handlePaymentSuccess(paymentBid)}
+            />
           </Elements>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <Link to="/jobs" className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-block">Back to Jobs</Link>
+      <Link
+        to="/jobs"
+        className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-block"
+      >
+        Back to Jobs
+      </Link>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+          {error}
+        </div>
+      )}
 
       {/* Job Header */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
@@ -358,20 +497,40 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
-              <span className="text-xs px-2 py-0.5 rounded bg-primary-50 text-primary-700 font-medium">Structured</span>
+              <span className="text-xs px-2 py-0.5 rounded bg-primary-50 text-primary-700 font-medium">
+                Structured
+              </span>
             </div>
-            {job.project_name && <p className="text-gray-500">{job.project_name}</p>}
+            {job.project_name && (
+              <p className="text-gray-500">{job.project_name}</p>
+            )}
           </div>
-          <span className={`text-xs font-medium px-3 py-1 rounded-full ${statusColors[job.status] || 'bg-gray-100 text-gray-600'}`}>
-            {job.status.replace('_', ' ')}
+          <span
+            className={`text-xs font-medium px-3 py-1 rounded-full ${statusColors[job.status] || "bg-gray-100 text-gray-600"}`}
+          >
+            {job.status.replace("_", " ")}
           </span>
         </div>
-        {job.description && <p className="text-gray-700 whitespace-pre-wrap mb-4">{job.description}</p>}
+        {job.description && (
+          <p className="text-gray-700 whitespace-pre-wrap mb-4">
+            {job.description}
+          </p>
+        )}
         <div className="flex items-center gap-6 text-sm text-gray-500">
-          <span><strong className="text-gray-900">${job.proposed_total?.toFixed(2)}</strong> proposed total</span>
+          <span>
+            <strong className="text-gray-900">
+              ${job.proposed_total?.toFixed(2)}
+            </strong>{" "}
+            proposed total
+          </span>
           <span>{job.estimated_time_minutes} min estimated</span>
-          <span className="capitalize">{job.assignment_type?.replace('_', ' ')} assignment</span>
-          <span>{job.roles?.length} roles, {job.roles?.reduce((s, r) => s + r.items.length, 0)} items</span>
+          <span className="capitalize">
+            {job.assignment_type?.replace("_", " ")} assignment
+          </span>
+          <span>
+            {job.roles?.length} roles,{" "}
+            {job.roles?.reduce((s, r) => s + r.items.length, 0)} items
+          </span>
         </div>
       </div>
 
@@ -381,58 +540,114 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
           <h2 className="text-lg font-bold text-gray-900">Test Plan</h2>
         </div>
         {job.roles?.map((role) => {
-          const expanded = expandedRoles.has(role.id)
-          const roleTotal = role.items.reduce((s, i) => s + i.proposed_price, 0)
+          const expanded = expandedRoles.has(role.id);
+          const roleTotal = role.items.reduce(
+            (s, i) => s + i.proposed_price,
+            0,
+          );
           return (
-            <div key={role.id} className="border-b border-gray-100 last:border-b-0">
+            <div
+              key={role.id}
+              className="border-b border-gray-100 last:border-b-0"
+            >
               <button
                 onClick={() => toggleRole(role.id)}
                 className="w-full px-6 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <svg className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
-                  <span className="font-semibold text-gray-900">{role.name}</span>
-                  {role.description && <span className="text-xs text-gray-400">— {role.description}</span>}
-                  <span className="text-xs text-gray-400">{role.items.length} items</span>
+                  <svg
+                    className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? "rotate-90" : ""}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                  <span className="font-semibold text-gray-900">
+                    {role.name}
+                  </span>
+                  {role.description && (
+                    <span className="text-xs text-gray-400">
+                      — {role.description}
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-400">
+                    {role.items.length} items
+                  </span>
                 </div>
-                <span className="text-sm font-medium text-gray-700">${roleTotal.toFixed(2)}</span>
+                <span className="text-sm font-medium text-gray-700">
+                  ${roleTotal.toFixed(2)}
+                </span>
               </button>
               {expanded && (
                 <div className="px-6 pb-4 space-y-1">
-                  {role.credentials && (role.credentials.email || role.credentials.password) && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-2 text-xs text-amber-700">
-                      <span className="font-medium">Login:</span>{' '}
-                      {role.credentials.email && <span>{role.credentials.email}</span>}
-                      {role.credentials.password && <span> / {role.credentials.password}</span>}
-                      {role.credentials.notes && <span className="text-amber-500 ml-2">({role.credentials.notes})</span>}
-                    </div>
-                  )}
+                  {role.credentials &&
+                    (role.credentials.email || role.credentials.password) && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-2 text-xs text-amber-700">
+                        <span className="font-medium">Login:</span>{" "}
+                        {role.credentials.email && (
+                          <span>{role.credentials.email}</span>
+                        )}
+                        {role.credentials.password && (
+                          <span> / {role.credentials.password}</span>
+                        )}
+                        {role.credentials.notes && (
+                          <span className="text-amber-500 ml-2">
+                            ({role.credentials.notes})
+                          </span>
+                        )}
+                      </div>
+                    )}
                   {role.items.map((item) => {
-                    const itemSubs = submissions.filter((s) => s.item_id === item.id)
-                    const itemStatus = itemSubs.length > 0 ? itemSubs[0].status : 'open'
+                    const itemSubs = submissions.filter(
+                      (s) => s.item_id === item.id,
+                    );
+                    const itemStatus =
+                      itemSubs.length > 0 ? itemSubs[0].status : "open";
                     return (
                       <div key={item.id}>
                         <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5">
                           <div className="flex items-center gap-3">
-                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[item.service_type] || 'bg-gray-100 text-gray-600'}`}>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[item.service_type] || "bg-gray-100 text-gray-600"}`}
+                            >
                               {item.service_type}
                             </span>
-                            <span className="text-sm text-gray-900">{item.title}</span>
-                            {item.description && <span className="text-xs text-gray-400 hidden sm:inline">— {item.description}</span>}
+                            <span className="text-sm text-gray-900">
+                              {item.title}
+                            </span>
+                            {item.description && (
+                              <span className="text-xs text-gray-400 hidden sm:inline">
+                                — {item.description}
+                              </span>
+                            )}
                             {item.pages?.length > 0 && (
-                              <span className="text-xs text-gray-400">{item.pages.length} page{item.pages.length !== 1 ? 's' : ''}</span>
+                              <span className="text-xs text-gray-400">
+                                {item.pages.length} page
+                                {item.pages.length !== 1 ? "s" : ""}
+                              </span>
                             )}
                           </div>
                           <div className="flex items-center gap-3 text-sm">
-                            <span className="text-xs text-gray-400">{item.estimated_minutes} min</span>
-                            <span className="font-medium text-gray-900">${item.proposed_price.toFixed(2)}</span>
+                            <span className="text-xs text-gray-400">
+                              {item.estimated_minutes} min
+                            </span>
+                            <span className="font-medium text-gray-900">
+                              ${item.proposed_price.toFixed(2)}
+                            </span>
                             {itemSubs.length > 0 && (
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                itemStatus === 'approved' ? 'bg-primary-100 text-primary-700' :
-                                itemStatus === 'submitted' ? 'bg-amber-100 text-amber-700' :
-                                itemStatus === 'draft' ? 'bg-gray-100 text-gray-600' :
-                                'bg-gray-100 text-gray-600'
-                              }`}>
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                  itemStatus === "approved"
+                                    ? "bg-primary-100 text-primary-700"
+                                    : itemStatus === "submitted"
+                                      ? "bg-amber-100 text-amber-700"
+                                      : itemStatus === "draft"
+                                        ? "bg-gray-100 text-gray-600"
+                                        : "bg-gray-100 text-gray-600"
+                                }`}
+                              >
                                 {itemStatus}
                               </span>
                             )}
@@ -441,52 +656,90 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
                         {item.pages?.length > 0 && (
                           <div className="ml-8 mt-1 mb-1 pl-3 border-l-2 border-gray-200 space-y-0.5">
                             {item.pages.map((page, pi) => (
-                              <div key={pi} className="text-xs text-gray-500 flex items-center gap-2">
+                              <div
+                                key={pi}
+                                className="text-xs text-gray-500 flex items-center gap-2"
+                              >
                                 <span className="w-1 h-1 rounded-full bg-gray-300" />
                                 <span>{page.name}</span>
-                                {page.url && <span className="text-gray-300">{page.url}</span>}
+                                {page.url && (
+                                  <span className="text-gray-300">
+                                    {page.url}
+                                  </span>
+                                )}
                               </div>
                             ))}
                           </div>
                         )}
                       </div>
-                    )
+                    );
                   })}
                 </div>
               )}
             </div>
-          )
+          );
         })}
       </div>
 
       {/* Tester: Bid Interface */}
-      {user.role === 'tester' && !isAssigned && (job.status === 'open' || job.status === 'in_progress') && (
-        <TesterBidInterface job={job} myBids={myBids} fetchData={fetchData} setError={setError} onWithdraw={handleWithdrawBid} />
-      )}
+      {user.role === "tester" &&
+        !isAssigned &&
+        (job.status === "open" || job.status === "in_progress") && (
+          <TesterBidInterface
+            job={job}
+            myBids={myBids}
+            fetchData={fetchData}
+            setError={setError}
+            onWithdraw={handleWithdrawBid}
+          />
+        )}
 
       {/* Tester: My Bids Status */}
-      {user.role === 'tester' && myBids.length > 0 && !isAssigned && (
+      {user.role === "tester" && myBids.length > 0 && !isAssigned && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Your Bids</h2>
           <div className="space-y-3">
             {myBids.map((bid) => (
-              <div key={bid.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+              <div
+                key={bid.id}
+                className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3"
+              >
                 <div>
-                  <span className="text-sm font-medium text-gray-900">${bid.bid_price.toFixed(2)}</span>
-                  {bid.is_counter && <span className="text-xs text-amber-600 ml-2">(counter-offer)</span>}
-                  {bid.message && <p className="text-xs text-gray-500 mt-0.5">{bid.message}</p>}
+                  <span className="text-sm font-medium text-gray-900">
+                    ${bid.bid_price.toFixed(2)}
+                  </span>
+                  {bid.is_counter && (
+                    <span className="text-xs text-amber-600 ml-2">
+                      (counter-offer)
+                    </span>
+                  )}
+                  {bid.message && (
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {bid.message}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    bid.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                    bid.status === 'accepted' ? 'bg-primary-100 text-primary-700' :
-                    bid.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                    'bg-gray-100 text-gray-600'
-                  }`}>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      bid.status === "pending"
+                        ? "bg-amber-100 text-amber-700"
+                        : bid.status === "accepted"
+                          ? "bg-primary-100 text-primary-700"
+                          : bid.status === "rejected"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
                     {bid.status}
                   </span>
-                  {bid.status === 'pending' && (
-                    <button onClick={() => handleWithdrawBid(bid.id)} className="text-xs text-gray-400 hover:text-red-500">Withdraw</button>
+                  {bid.status === "pending" && (
+                    <button
+                      onClick={() => handleWithdrawBid(bid.id)}
+                      className="text-xs text-gray-400 hover:text-red-500"
+                    >
+                      Withdraw
+                    </button>
                   )}
                 </div>
               </div>
@@ -496,55 +749,99 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
       )}
 
       {/* Tester: Per-Item Submission Forms (after bid accepted + paid) */}
-      {user.role === 'tester' && isAssigned && mySubmissions.length > 0 && (
+      {user.role === "tester" && isAssigned && mySubmissions.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-900">Your Assigned Items ({mySubmissions.length})</h2>
+          <h2 className="text-xl font-bold text-gray-900">
+            Your Assigned Items ({mySubmissions.length})
+          </h2>
           {job.roles?.map((role) => {
-            const roleSubs = mySubmissions.filter((s) => s.role_id === role.id)
-            if (roleSubs.length === 0) return null
+            const roleSubs = mySubmissions.filter((s) => s.role_id === role.id);
+            if (roleSubs.length === 0) return null;
             return (
               <div key={role.id}>
-                <h3 className="text-sm font-semibold text-gray-500 mb-2">{role.name}</h3>
+                <h3 className="text-sm font-semibold text-gray-500 mb-2">
+                  {role.name}
+                </h3>
                 <div className="space-y-3">
                   {roleSubs.map((sub) => (
-                    <V2TesterSubmission key={sub.id} submission={sub} onUpdate={fetchData} setError={setError} />
+                    <V2TesterSubmission
+                      key={sub.id}
+                      submission={sub}
+                      onUpdate={fetchData}
+                      setError={setError}
+                    />
                   ))}
                 </div>
               </div>
-            )
+            );
           })}
         </div>
       )}
 
       {/* Builder: Bid Review Panel */}
-      {user.role === 'builder' && bids.length > 0 && (
+      {user.role === "builder" && bids.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Bids ({bids.length})</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-4">
+            Bids ({bids.length})
+          </h2>
           <div className="space-y-3">
             {bids.map((bid) => (
-              <div key={bid.id} className="border border-gray-100 rounded-lg p-4">
+              <div
+                key={bid.id}
+                className="border border-gray-100 rounded-lg p-4"
+              >
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">{bid.tester_name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        bid.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                        bid.status === 'accepted' ? 'bg-primary-100 text-primary-700' :
-                        bid.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
+                      <span className="font-medium text-gray-900">
+                        {bid.tester_name}
+                      </span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          bid.status === "pending"
+                            ? "bg-amber-100 text-amber-700"
+                            : bid.status === "accepted"
+                              ? "bg-primary-100 text-primary-700"
+                              : bid.status === "rejected"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
                         {bid.status}
                       </span>
-                      {bid.is_counter && <span className="text-xs text-amber-600">counter-offer</span>}
+                      {bid.is_counter && (
+                        <span className="text-xs text-amber-600">
+                          counter-offer
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-4 mt-1 text-sm">
-                      <span>Bid: <strong className="text-gray-900">${bid.bid_price.toFixed(2)}</strong></span>
-                      <span className="text-gray-400">vs proposed: ${bid.proposed_price.toFixed(2)}</span>
-                      {bid.scope_role_id && <span className="text-xs text-gray-400">Role: {job.roles?.find((r) => r.id === bid.scope_role_id)?.name}</span>}
+                      <span>
+                        Bid:{" "}
+                        <strong className="text-gray-900">
+                          ${bid.bid_price.toFixed(2)}
+                        </strong>
+                      </span>
+                      <span className="text-gray-400">
+                        vs proposed: ${bid.proposed_price.toFixed(2)}
+                      </span>
+                      {bid.scope_role_id && (
+                        <span className="text-xs text-gray-400">
+                          Role:{" "}
+                          {
+                            job.roles?.find((r) => r.id === bid.scope_role_id)
+                              ?.name
+                          }
+                        </span>
+                      )}
                     </div>
-                    {bid.message && <p className="text-sm text-gray-500 mt-2">{bid.message}</p>}
+                    {bid.message && (
+                      <p className="text-sm text-gray-500 mt-2">
+                        {bid.message}
+                      </p>
+                    )}
                   </div>
-                  {bid.status === 'pending' && (
+                  {bid.status === "pending" && (
                     <div className="flex gap-2 shrink-0">
                       <button
                         onClick={() => handleAcceptBid(bid)}
@@ -560,9 +857,12 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
                       </button>
                     </div>
                   )}
-                  {bid.status === 'accepted' && bid.payment_status === 'paid' && (
-                    <span className="text-xs text-primary-600 font-medium">Paid</span>
-                  )}
+                  {bid.status === "accepted" &&
+                    bid.payment_status === "paid" && (
+                      <span className="text-xs text-primary-600 font-medium">
+                        Paid
+                      </span>
+                    )}
                 </div>
               </div>
             ))}
@@ -571,80 +871,102 @@ function V2JobDetail({ job, user, submissions, bids, error, setError, fetchData,
       )}
 
       {/* Builder: Per-Item Submission Review */}
-      {user.role === 'builder' && submissions.length > 0 && (
+      {user.role === "builder" && submissions.length > 0 && (
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Submissions ({submissions.length})</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">
+            Submissions ({submissions.length})
+          </h2>
           {job.roles?.map((role) => {
-            const roleSubs = submissions.filter((s) => s.role_id === role.id)
-            if (roleSubs.length === 0) return null
+            const roleSubs = submissions.filter((s) => s.role_id === role.id);
+            if (roleSubs.length === 0) return null;
             return (
               <div key={role.id} className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-500 mb-2">{role.name}</h3>
+                <h3 className="text-sm font-semibold text-gray-500 mb-2">
+                  {role.name}
+                </h3>
                 <div className="space-y-4">
                   {roleSubs.map((sub) => (
-                    <BuilderSubmissionCard key={sub.id} submission={sub} onUpdate={fetchData} setError={setError} />
+                    <BuilderSubmissionCard
+                      key={sub.id}
+                      submission={sub}
+                      onUpdate={fetchData}
+                      setError={setError}
+                    />
                   ))}
                 </div>
               </div>
-            )
+            );
           })}
           {/* Submissions without a role_id (shouldn't happen for v2 but safety) */}
           {submissions.filter((s) => !s.role_id).length > 0 && (
             <div className="space-y-4">
-              {submissions.filter((s) => !s.role_id).map((sub) => (
-                <BuilderSubmissionCard key={sub.id} submission={sub} onUpdate={fetchData} setError={setError} />
-              ))}
+              {submissions
+                .filter((s) => !s.role_id)
+                .map((sub) => (
+                  <BuilderSubmissionCard
+                    key={sub.id}
+                    submission={sub}
+                    onUpdate={fetchData}
+                    setError={setError}
+                  />
+                ))}
             </div>
           )}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ============== Tester Bid Interface ==============
 
 function TesterBidInterface({ job, myBids, fetchData, setError }) {
-  const [bidding, setBidding] = useState(null) // null, or { scope_role_id, scope_item_id, proposed_price }
-  const [bidPrice, setBidPrice] = useState('')
-  const [bidMessage, setBidMessage] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const [bidding, setBidding] = useState(null); // null, or { scope_role_id, scope_item_id, proposed_price }
+  const [bidPrice, setBidPrice] = useState("");
+  const [bidMessage, setBidMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const assignment = job.assignment_type
-  const roles = job.roles || []
+  const assignment = job.assignment_type;
+  const roles = job.roles || [];
 
   const hasPendingBid = (roleId, itemId) => {
-    return myBids.some((b) => b.status === 'pending' && (
-      (assignment === 'per_job') ||
-      (assignment === 'per_role' && b.scope_role_id === roleId) ||
-      (assignment === 'per_item' && b.scope_item_id === itemId)
-    ))
-  }
+    return myBids.some(
+      (b) =>
+        b.status === "pending" &&
+        (assignment === "per_job" ||
+          (assignment === "per_role" && b.scope_role_id === roleId) ||
+          (assignment === "per_item" && b.scope_item_id === itemId)),
+    );
+  };
 
   const startBid = (scopeRoleId, scopeItemId, proposedPrice) => {
-    setBidding({ scope_role_id: scopeRoleId, scope_item_id: scopeItemId, proposed_price: proposedPrice })
-    setBidPrice(proposedPrice.toString())
-    setBidMessage('')
-  }
+    setBidding({
+      scope_role_id: scopeRoleId,
+      scope_item_id: scopeItemId,
+      proposed_price: proposedPrice,
+    });
+    setBidPrice(proposedPrice.toString());
+    setBidMessage("");
+  };
 
   const submitBid = async () => {
-    setSubmitting(true)
-    setError('')
+    setSubmitting(true);
+    setError("");
     try {
       await axios.post(`/api/jobs/${job.id}/bids`, {
         bid_price: parseFloat(bidPrice),
         message: bidMessage,
         scope_role_id: bidding.scope_role_id,
         scope_item_id: bidding.scope_item_id,
-      })
-      setBidding(null)
-      fetchData()
+      });
+      setBidding(null);
+      fetchData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to submit bid')
+      setError(err.response?.data?.detail || "Failed to submit bid");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   // Bid form modal
   if (bidding) {
@@ -653,7 +975,12 @@ function TesterBidInterface({ job, myBids, fetchData, setError }) {
         <h3 className="text-lg font-bold text-gray-900 mb-4">Place Your Bid</h3>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Proposed price: <strong className="text-gray-900">${bidding.proposed_price.toFixed(2)}</strong></label>
+            <label className="block text-sm text-gray-500 mb-1">
+              Proposed price:{" "}
+              <strong className="text-gray-900">
+                ${bidding.proposed_price.toFixed(2)}
+              </strong>
+            </label>
             <div className="flex items-center gap-2">
               <span className="text-gray-500 font-medium">$</span>
               <input
@@ -665,12 +992,16 @@ function TesterBidInterface({ job, myBids, fetchData, setError }) {
                 onChange={(e) => setBidPrice(e.target.value)}
               />
               {parseFloat(bidPrice) !== bidding.proposed_price && (
-                <span className="text-xs text-amber-600 font-medium">Counter-offer</span>
+                <span className="text-xs text-amber-600 font-medium">
+                  Counter-offer
+                </span>
               )}
             </div>
           </div>
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Message (optional)</label>
+            <label className="block text-sm text-gray-500 mb-1">
+              Message (optional)
+            </label>
             <textarea
               rows={2}
               maxLength={500}
@@ -686,279 +1017,381 @@ function TesterBidInterface({ job, myBids, fetchData, setError }) {
               disabled={submitting || !bidPrice || parseFloat(bidPrice) <= 0}
               className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
             >
-              {submitting ? 'Submitting...' : 'Submit Bid'}
+              {submitting ? "Submitting..." : "Submit Bid"}
             </button>
-            <button onClick={() => setBidding(null)} className="px-5 py-2.5 text-gray-500 hover:text-gray-700">Cancel</button>
+            <button
+              onClick={() => setBidding(null)}
+              className="px-5 py-2.5 text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   // Bid buttons
-  if (assignment === 'per_job') {
-    const totalProposed = roles.reduce((s, r) => s + r.items.reduce((si, i) => si + i.proposed_price, 0), 0)
-    const alreadyBid = hasPendingBid()
+  if (assignment === "per_job") {
+    const totalProposed = roles.reduce(
+      (s, r) => s + r.items.reduce((si, i) => si + i.proposed_price, 0),
+      0,
+    );
+    const alreadyBid = hasPendingBid();
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-gray-900">Bid on entire job</h3>
-            <p className="text-sm text-gray-500">Proposed: ${totalProposed.toFixed(2)} for all {roles.reduce((s, r) => s + r.items.length, 0)} items</p>
+            <p className="text-sm text-gray-500">
+              Proposed: ${totalProposed.toFixed(2)} for all{" "}
+              {roles.reduce((s, r) => s + r.items.length, 0)} items
+            </p>
           </div>
           {alreadyBid ? (
-            <span className="text-sm text-amber-600 font-medium">Bid pending</span>
+            <span className="text-sm text-amber-600 font-medium">
+              Bid pending
+            </span>
           ) : (
-            <button onClick={() => startBid(null, null, totalProposed)} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium">
+            <button
+              onClick={() => startBid(null, null, totalProposed)}
+              className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium"
+            >
               Place Bid
             </button>
           )}
         </div>
       </div>
-    )
+    );
   }
 
-  if (assignment === 'per_role') {
+  if (assignment === "per_role") {
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
         <h3 className="font-semibold text-gray-900 mb-4">Bid per role</h3>
         <div className="space-y-3">
           {roles.map((role) => {
-            const roleTotal = role.items.reduce((s, i) => s + i.proposed_price, 0)
-            const alreadyBid = hasPendingBid(role.id)
+            const roleTotal = role.items.reduce(
+              (s, i) => s + i.proposed_price,
+              0,
+            );
+            const alreadyBid = hasPendingBid(role.id);
             return (
-              <div key={role.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+              <div
+                key={role.id}
+                className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3"
+              >
                 <div>
                   <span className="font-medium text-gray-900">{role.name}</span>
-                  <span className="text-sm text-gray-500 ml-2">({role.items.length} items, ${roleTotal.toFixed(2)} proposed)</span>
+                  <span className="text-sm text-gray-500 ml-2">
+                    ({role.items.length} items, ${roleTotal.toFixed(2)}{" "}
+                    proposed)
+                  </span>
                 </div>
                 {alreadyBid ? (
-                  <span className="text-sm text-amber-600 font-medium">Bid pending</span>
+                  <span className="text-sm text-amber-600 font-medium">
+                    Bid pending
+                  </span>
                 ) : (
-                  <button onClick={() => startBid(role.id, null, roleTotal)} className="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 font-medium">
+                  <button
+                    onClick={() => startBid(role.id, null, roleTotal)}
+                    className="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 font-medium"
+                  >
                     Bid
                   </button>
                 )}
               </div>
-            )
+            );
           })}
         </div>
       </div>
-    )
+    );
   }
 
-  if (assignment === 'per_item') {
+  if (assignment === "per_item") {
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
         <h3 className="font-semibold text-gray-900 mb-4">Bid per item</h3>
         {roles.map((role) => (
           <div key={role.id} className="mb-4 last:mb-0">
-            <p className="text-xs font-semibold text-gray-500 mb-2">{role.name}</p>
+            <p className="text-xs font-semibold text-gray-500 mb-2">
+              {role.name}
+            </p>
             <div className="space-y-2">
               {role.items.map((item) => {
-                const alreadyBid = hasPendingBid(null, item.id)
+                const alreadyBid = hasPendingBid(null, item.id);
                 return (
-                  <div key={item.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5">
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5"
+                  >
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[item.service_type]}`}>{item.service_type}</span>
-                      <span className="text-sm text-gray-900">{item.title}</span>
-                      <span className="text-sm text-gray-500">${item.proposed_price.toFixed(2)}</span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[item.service_type]}`}
+                      >
+                        {item.service_type}
+                      </span>
+                      <span className="text-sm text-gray-900">
+                        {item.title}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        ${item.proposed_price.toFixed(2)}
+                      </span>
                     </div>
                     {alreadyBid ? (
-                      <span className="text-xs text-amber-600 font-medium">Bid pending</span>
+                      <span className="text-xs text-amber-600 font-medium">
+                        Bid pending
+                      </span>
                     ) : (
-                      <button onClick={() => startBid(null, item.id, item.proposed_price)} className="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 font-medium">
+                      <button
+                        onClick={() =>
+                          startBid(null, item.id, item.proposed_price)
+                        }
+                        className="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 font-medium"
+                      >
                         Bid
                       </button>
                     )}
                   </div>
-                )
+                );
               })}
             </div>
           </div>
         ))}
       </div>
-    )
+    );
   }
 
-  return null
+  return null;
 }
 
 // ============== V2 Tester Submission (per-item, service-type-specific) ==============
 
 function V2TesterSubmission({ submission, onUpdate, setError }) {
-  const [saving, setSaving] = useState(false)
-  const serviceType = submission.service_type || 'test'
-  const isEditable = submission.status === 'draft'
+  const [saving, setSaving] = useState(false);
+  const serviceType = submission.service_type || "test";
+  const isEditable = submission.status === "draft";
 
   // Session recording
-  const rrweb = useRrwebRecorder()
-  const [sessionStarted, setSessionStarted] = useState(false)
-  const [sessionEnded, setSessionEnded] = useState(!!submission.rrweb_recording_url)
-  const [uploadingRrweb, setUploadingRrweb] = useState(false)
+  const rrweb = useRrwebRecorder();
+  const [sessionStarted, setSessionStarted] = useState(false);
+  const [sessionEnded, setSessionEnded] = useState(
+    !!submission.rrweb_recording_url,
+  );
+  const [uploadingRrweb, setUploadingRrweb] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
-    overall_feedback: submission.overall_feedback || '',
+    overall_feedback: submission.overall_feedback || "",
     usability_score: submission.usability_score || null,
-    suggestions: submission.suggestions || '',
+    suggestions: submission.suggestions || "",
     bug_reports: submission.bug_reports || [],
-    document_content: submission.document_content || '',
-    transcript: submission.transcript || '',
+    document_content: submission.document_content || "",
+    transcript: submission.transcript || "",
     screenshots: submission.screenshots || [],
-  })
+  });
 
   // Bug form state
-  const [showBugForm, setShowBugForm] = useState(false)
-  const [bugForm, setBugForm] = useState({ title: '', description: '', severity: 'medium', steps_to_reproduce: '', screenshot_url: '' })
-  const [showBugAnnotator, setShowBugAnnotator] = useState(false)
-  const [showGeneralAnnotator, setShowGeneralAnnotator] = useState(false)
+  const [showBugForm, setShowBugForm] = useState(false);
+  const [bugForm, setBugForm] = useState({
+    title: "",
+    description: "",
+    severity: "medium",
+    steps_to_reproduce: "",
+    screenshot_url: "",
+  });
+  const [showBugAnnotator, setShowBugAnnotator] = useState(false);
+  const [showGeneralAnnotator, setShowGeneralAnnotator] = useState(false);
 
   const addBug = () => {
-    if (!bugForm.title.trim() || !bugForm.description.trim()) return
-    const bug = { ...bugForm }
-    if (!bug.screenshot_url) delete bug.screenshot_url
-    setForm({ ...form, bug_reports: [...form.bug_reports, bug] })
-    setBugForm({ title: '', description: '', severity: 'medium', steps_to_reproduce: '', screenshot_url: '' })
-    setShowBugForm(false)
-  }
+    if (!bugForm.title.trim() || !bugForm.description.trim()) return;
+    const bug = { ...bugForm };
+    if (!bug.screenshot_url) delete bug.screenshot_url;
+    setForm({ ...form, bug_reports: [...form.bug_reports, bug] });
+    setBugForm({
+      title: "",
+      description: "",
+      severity: "medium",
+      steps_to_reproduce: "",
+      screenshot_url: "",
+    });
+    setShowBugForm(false);
+  };
 
   const removeBug = (index) => {
-    setForm({ ...form, bug_reports: form.bug_reports.filter((_, i) => i !== index) })
-  }
+    setForm({
+      ...form,
+      bug_reports: form.bug_reports.filter((_, i) => i !== index),
+    });
+  };
 
   // Video state
-  const [recordingState, setRecordingState] = useState('idle')
-  const [mediaRecorder, setMediaRecorder] = useState(null)
-  const [recordedBlob, setRecordedBlob] = useState(null)
-  const [recordedUrl, setRecordedUrl] = useState(null)
-  const [uploading, setUploading] = useState(false)
-  const [videoUrl, setVideoUrl] = useState(submission.video_url || null)
+  const [recordingState, setRecordingState] = useState("idle");
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [recordedBlob, setRecordedBlob] = useState(null);
+  const [recordedUrl, setRecordedUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [videoUrl, setVideoUrl] = useState(submission.video_url || null);
 
   const subStatusColors = {
-    draft: 'bg-gray-100 text-gray-600',
-    submitted: 'bg-amber-100 text-amber-700',
-    approved: 'bg-primary-100 text-primary-700',
-    rejected: 'bg-red-100 text-red-700',
-  }
+    draft: "bg-gray-100 text-gray-600",
+    submitted: "bg-amber-100 text-amber-700",
+    approved: "bg-primary-100 text-primary-700",
+    rejected: "bg-red-100 text-red-700",
+  };
 
   const handleStartSession = () => {
-    rrweb.startSession()
-    setSessionStarted(true)
-    axios.put(`/api/submissions/${submission.id}/session-timing`, {
-      session_started_at: new Date().toISOString(),
-    }).catch(() => {})
-  }
+    rrweb.startSession();
+    setSessionStarted(true);
+    axios
+      .put(`/api/submissions/${submission.id}/session-timing`, {
+        session_started_at: new Date().toISOString(),
+      })
+      .catch(() => {});
+  };
 
   const handleEndSession = async () => {
-    const result = rrweb.endSession()
-    setUploadingRrweb(true)
+    const result = rrweb.endSession();
+    setUploadingRrweb(true);
     try {
-      await axios.post(`/api/submissions/${submission.id}/upload-rrweb`, result.blob, {
-        headers: { 'Content-Type': 'application/gzip' },
-      })
+      await axios.post(
+        `/api/submissions/${submission.id}/upload-rrweb`,
+        result.blob,
+        {
+          headers: { "Content-Type": "application/gzip" },
+        },
+      );
       await axios.put(`/api/submissions/${submission.id}/session-timing`, {
         session_ended_at: result.endedAt,
         session_duration_seconds: result.duration,
-      })
-      setSessionEnded(true)
+      });
+      setSessionEnded(true);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to upload session recording')
+      setError(
+        err.response?.data?.detail || "Failed to upload session recording",
+      );
     } finally {
-      setUploadingRrweb(false)
+      setUploadingRrweb(false);
     }
-  }
+  };
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: { mediaSource: 'screen' }, audio: serviceType === 'voiceover' })
-      const chunks = []
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { mediaSource: "screen" },
+        audio: serviceType === "voiceover",
+      });
+      const chunks = [];
+      const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
       recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop())
-        const blob = new Blob(chunks, { type: 'video/webm' })
-        setRecordedBlob(blob)
-        setRecordedUrl(URL.createObjectURL(blob))
-        setRecordingState('recorded')
-      }
-      stream.getVideoTracks()[0].onended = () => { if (recorder.state === 'recording') recorder.stop() }
-      recorder.start()
-      setMediaRecorder(recorder)
-      setRecordingState('recording')
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks, { type: "video/webm" });
+        setRecordedBlob(blob);
+        setRecordedUrl(URL.createObjectURL(blob));
+        setRecordingState("recorded");
+      };
+      stream.getVideoTracks()[0].onended = () => {
+        if (recorder.state === "recording") recorder.stop();
+      };
+      recorder.start();
+      setMediaRecorder(recorder);
+      setRecordingState("recording");
     } catch (err) {
-      if (err.name !== 'NotAllowedError') setError('Failed to start recording')
+      if (err.name !== "NotAllowedError") setError("Failed to start recording");
     }
-  }
+  };
 
-  const stopRecording = () => { if (mediaRecorder?.state === 'recording') mediaRecorder.stop() }
+  const stopRecording = () => {
+    if (mediaRecorder?.state === "recording") mediaRecorder.stop();
+  };
 
   const handleUploadVideo = async () => {
-    if (!recordedBlob) return
-    setUploading(true)
+    if (!recordedBlob) return;
+    setUploading(true);
     try {
-      const formData = new FormData()
-      formData.append('file', recordedBlob, 'recording.webm')
-      const res = await axios.post(`/api/submissions/${submission.id}/upload-video`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-      setVideoUrl(res.data.video_url)
-      setRecordedBlob(null)
-      setRecordedUrl(null)
-      setRecordingState('idle')
+      const formData = new FormData();
+      formData.append("file", recordedBlob, "recording.webm");
+      const res = await axios.post(
+        `/api/submissions/${submission.id}/upload-video`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+      setVideoUrl(res.data.video_url);
+      setRecordedBlob(null);
+      setRecordedUrl(null);
+      setRecordingState("idle");
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to upload video')
+      setError(err.response?.data?.detail || "Failed to upload video");
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }
+  };
 
   const discardRecording = () => {
-    if (recordedUrl) URL.revokeObjectURL(recordedUrl)
-    setRecordedBlob(null)
-    setRecordedUrl(null)
-    setRecordingState('idle')
-  }
+    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    setRecordedBlob(null);
+    setRecordedUrl(null);
+    setRecordingState("idle");
+  };
 
   const handleSave = async () => {
-    setSaving(true)
+    setSaving(true);
     try {
-      await axios.put(`/api/submissions/${submission.id}`, form)
-      setError('')
+      await axios.put(`/api/submissions/${submission.id}`, form);
+      setError("");
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save')
+      setError(err.response?.data?.detail || "Failed to save");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleSubmit = async () => {
-    if (!confirm("Submit this item? You won't be able to edit after.")) return
-    setSaving(true)
+    if (!confirm("Submit this item? You won't be able to edit after.")) return;
+    setSaving(true);
     try {
-      await axios.put(`/api/submissions/${submission.id}`, form)
-      await axios.post(`/api/submissions/${submission.id}/submit`)
-      onUpdate()
+      await axios.put(`/api/submissions/${submission.id}`, form);
+      await axios.post(`/api/submissions/${submission.id}/submit`);
+      onUpdate();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to submit')
+      setError(err.response?.data?.detail || "Failed to submit");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
-  const itemTitle = submission.job_title ? `${submission.job_title}` : ''
+  const itemTitle = submission.job_title ? `${submission.job_title}` : "";
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className={`text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[serviceType]}`}>{serviceType}</span>
-          <span className="text-sm font-medium text-gray-900">{submission.item_id ? `Item` : itemTitle}</span>
+          <span
+            className={`text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[serviceType]}`}
+          >
+            {serviceType}
+          </span>
+          <span className="text-sm font-medium text-gray-900">
+            {submission.item_id ? `Item` : itemTitle}
+          </span>
         </div>
-        <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${subStatusColors[submission.status]}`}>{submission.status}</span>
+        <span
+          className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${subStatusColors[submission.status]}`}
+        >
+          {submission.status}
+        </span>
       </div>
 
       {submission.review_feedback && (
-        <div className={`mb-4 border rounded-lg p-3 text-sm ${submission.status === 'approved' ? 'bg-primary-50 border-primary-200' : 'bg-red-50 border-red-200'}`}>
-          <p className="font-medium text-sm mb-0.5">{submission.status === 'approved' ? 'Approved' : 'Rejected'}</p>
+        <div
+          className={`mb-4 border rounded-lg p-3 text-sm ${submission.status === "approved" ? "bg-primary-50 border-primary-200" : "bg-red-50 border-red-200"}`}
+        >
+          <p className="font-medium text-sm mb-0.5">
+            {submission.status === "approved" ? "Approved" : "Rejected"}
+          </p>
           <p className="text-gray-700">{submission.review_feedback}</p>
         </div>
       )}
@@ -966,8 +1399,15 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
       {/* Session gate — must start session before seeing form */}
       {isEditable && !sessionStarted && !sessionEnded && (
         <div className="text-center py-6">
-          <p className="text-sm text-gray-500 mb-4">Start a session to begin working on this item. Your workspace activity will be recorded.</p>
-          <button type="button" onClick={handleStartSession} className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium text-sm">
+          <p className="text-sm text-gray-500 mb-4">
+            Start a session to begin working on this item. Your workspace
+            activity will be recorded.
+          </p>
+          <button
+            type="button"
+            onClick={handleStartSession}
+            className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium text-sm"
+          >
             Start Session
           </button>
         </div>
@@ -981,77 +1421,224 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
       {/* Form — only visible after session started or already ended */}
       {(!isEditable || sessionStarted || sessionEnded) && (
         <div className="space-y-4">
-          {(serviceType === 'test' || !serviceType) && (
+          {(serviceType === "test" || !serviceType) && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Overall Feedback <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Overall Feedback <span className="text-red-500">*</span>
+                </label>
                 {isEditable ? (
-                  <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={form.overall_feedback} onChange={(e) => setForm({ ...form, overall_feedback: e.target.value })} placeholder="Describe your experience..." />
+                  <textarea
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                    value={form.overall_feedback}
+                    onChange={(e) =>
+                      setForm({ ...form, overall_feedback: e.target.value })
+                    }
+                    placeholder="Describe your experience..."
+                  />
                 ) : (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{form.overall_feedback}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {form.overall_feedback}
+                  </p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Usability Score <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Usability Score <span className="text-red-500">*</span>
+                </label>
                 <div className="flex gap-1.5">
                   {[1, 2, 3, 4, 5].map((n) => (
-                    <button key={n} type="button" disabled={!isEditable} onClick={() => setForm({ ...form, usability_score: n })} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${n <= (form.usability_score || 0) ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-400'} ${!isEditable ? 'cursor-default' : 'cursor-pointer hover:bg-gray-200'}`}>{n}</button>
+                    <button
+                      key={n}
+                      type="button"
+                      disabled={!isEditable}
+                      onClick={() => setForm({ ...form, usability_score: n })}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${n <= (form.usability_score || 0) ? "bg-primary-600 text-white" : "bg-gray-100 text-gray-400"} ${!isEditable ? "cursor-default" : "cursor-pointer hover:bg-gray-200"}`}
+                    >
+                      {n}
+                    </button>
                   ))}
                 </div>
               </div>
               {/* Bug Reports */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">Bug Reports ({form.bug_reports.length})</label>
-                  {isEditable && <button type="button" onClick={() => setShowBugForm(!showBugForm)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">{showBugForm ? 'Cancel' : '+ Add Bug'}</button>}
+                  <label className="block text-sm font-medium text-gray-700">
+                    Bug Reports ({form.bug_reports.length})
+                  </label>
+                  {isEditable && (
+                    <button
+                      type="button"
+                      onClick={() => setShowBugForm(!showBugForm)}
+                      className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                    >
+                      {showBugForm ? "Cancel" : "+ Add Bug"}
+                    </button>
+                  )}
                 </div>
                 {showBugForm && (
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-3 space-y-3">
-                    <input type="text" placeholder="Bug title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.title} onChange={(e) => setBugForm({ ...bugForm, title: e.target.value })} />
-                    <textarea rows={2} placeholder="Describe the bug..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.description} onChange={(e) => setBugForm({ ...bugForm, description: e.target.value })} />
+                    <input
+                      type="text"
+                      placeholder="Bug title"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                      value={bugForm.title}
+                      onChange={(e) =>
+                        setBugForm({ ...bugForm, title: e.target.value })
+                      }
+                    />
+                    <textarea
+                      rows={2}
+                      placeholder="Describe the bug..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                      value={bugForm.description}
+                      onChange={(e) =>
+                        setBugForm({ ...bugForm, description: e.target.value })
+                      }
+                    />
                     <div className="grid grid-cols-2 gap-3">
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.severity} onChange={(e) => setBugForm({ ...bugForm, severity: e.target.value })}>
-                        {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      <select
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                        value={bugForm.severity}
+                        onChange={(e) =>
+                          setBugForm({ ...bugForm, severity: e.target.value })
+                        }
+                      >
+                        {SEVERITIES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
                       </select>
-                      <input type="text" placeholder="Steps to reproduce" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.steps_to_reproduce} onChange={(e) => setBugForm({ ...bugForm, steps_to_reproduce: e.target.value })} />
+                      <input
+                        type="text"
+                        placeholder="Steps to reproduce"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                        value={bugForm.steps_to_reproduce}
+                        onChange={(e) =>
+                          setBugForm({
+                            ...bugForm,
+                            steps_to_reproduce: e.target.value,
+                          })
+                        }
+                      />
                     </div>
                     {bugForm.screenshot_url ? (
                       <div className="flex items-start gap-2">
-                        <a href={bugForm.screenshot_url} target="_blank" rel="noopener noreferrer">
-                          <img src={bugForm.screenshot_url} alt="Bug screenshot" className="h-20 rounded border border-gray-200 object-cover cursor-pointer hover:opacity-80" />
+                        <a
+                          href={bugForm.screenshot_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <img
+                            src={bugForm.screenshot_url}
+                            alt="Bug screenshot"
+                            className="h-20 rounded border border-gray-200 object-cover cursor-pointer hover:opacity-80"
+                          />
                         </a>
-                        <button type="button" onClick={() => setBugForm({ ...bugForm, screenshot_url: '' })} className="text-red-400 hover:text-red-600 text-xs mt-1">Remove</button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setBugForm({ ...bugForm, screenshot_url: "" })
+                          }
+                          className="text-red-400 hover:text-red-600 text-xs mt-1"
+                        >
+                          Remove
+                        </button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => setShowBugAnnotator(true)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-600 font-medium">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
+                      <button
+                        type="button"
+                        onClick={() => setShowBugAnnotator(true)}
+                        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-600 font-medium"
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path d="m21 15-5-5L5 21" />
+                        </svg>
                         Attach Screenshot
                       </button>
                     )}
-                    <button type="button" onClick={addBug} className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium">Add Bug</button>
+                    <button
+                      type="button"
+                      onClick={addBug}
+                      className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium"
+                    >
+                      Add Bug
+                    </button>
                   </div>
                 )}
-                <ScreenshotAnnotator isOpen={showBugAnnotator} onClose={() => setShowBugAnnotator(false)} onComplete={(url) => setBugForm((f) => ({ ...f, screenshot_url: url }))} submissionId={submission.id} />
+                <ScreenshotAnnotator
+                  isOpen={showBugAnnotator}
+                  onClose={() => setShowBugAnnotator(false)}
+                  onComplete={(url) =>
+                    setBugForm((f) => ({ ...f, screenshot_url: url }))
+                  }
+                  submissionId={submission.id}
+                />
                 {form.bug_reports.length === 0 ? (
                   <p className="text-sm text-gray-400">No bugs reported yet.</p>
                 ) : (
                   <div className="space-y-2">
                     {form.bug_reports.map((bug, i) => (
-                      <div key={i} className="bg-gray-50 border border-gray-100 rounded p-3">
+                      <div
+                        key={i}
+                        className="bg-gray-50 border border-gray-100 rounded p-3"
+                      >
                         <div className="flex items-start justify-between">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-sm">{bug.title}</span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${severityColors[bug.severity] || 'bg-gray-100 text-gray-600'}`}>{bug.severity}</span>
+                              <span className="font-medium text-sm">
+                                {bug.title}
+                              </span>
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded-full ${severityColors[bug.severity] || "bg-gray-100 text-gray-600"}`}
+                              >
+                                {bug.severity}
+                              </span>
                             </div>
-                            <p className="text-sm text-gray-600">{bug.description}</p>
-                            {bug.steps_to_reproduce && <p className="text-xs text-gray-500 mt-1"><strong>Steps:</strong> {bug.steps_to_reproduce}</p>}
+                            <p className="text-sm text-gray-600">
+                              {bug.description}
+                            </p>
+                            {bug.steps_to_reproduce && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                <strong>Steps:</strong> {bug.steps_to_reproduce}
+                              </p>
+                            )}
                           </div>
-                          {isEditable && <button type="button" onClick={() => removeBug(i)} className="text-red-400 hover:text-red-600 text-sm ml-3 shrink-0">Remove</button>}
+                          {isEditable && (
+                            <button
+                              type="button"
+                              onClick={() => removeBug(i)}
+                              className="text-red-400 hover:text-red-600 text-sm ml-3 shrink-0"
+                            >
+                              Remove
+                            </button>
+                          )}
                         </div>
                         {bug.screenshot_url && (
-                          <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
-                            <img src={bug.screenshot_url} alt="Bug screenshot" className="h-24 rounded border border-gray-200 object-cover hover:opacity-80" />
+                          <a
+                            href={bug.screenshot_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block mt-2"
+                          >
+                            <img
+                              src={bug.screenshot_url}
+                              alt="Bug screenshot"
+                              className="h-24 rounded border border-gray-200 object-cover hover:opacity-80"
+                            />
                           </a>
                         )}
                       </div>
@@ -1062,28 +1649,61 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
             </>
           )}
 
-          {serviceType === 'record' && (
+          {serviceType === "record" && (
             <>
               {isEditable && !videoUrl && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording <span className="text-red-500">*</span></label>
-                  {recordingState === 'idle' && (
-                    <button type="button" onClick={startRecording} className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium">
-                      <span className="w-3 h-3 rounded-full bg-red-500" />Start Recording
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Screen Recording <span className="text-red-500">*</span>
+                  </label>
+                  {recordingState === "idle" && (
+                    <button
+                      type="button"
+                      onClick={startRecording}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium"
+                    >
+                      <span className="w-3 h-3 rounded-full bg-red-500" />
+                      Start Recording
                     </button>
                   )}
-                  {recordingState === 'recording' && (
+                  {recordingState === "recording" && (
                     <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-2 text-sm text-red-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />Recording...</span>
-                      <button type="button" onClick={stopRecording} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium">Stop</button>
+                      <span className="flex items-center gap-2 text-sm text-red-600 font-medium">
+                        <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                        Recording...
+                      </span>
+                      <button
+                        type="button"
+                        onClick={stopRecording}
+                        className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium"
+                      >
+                        Stop
+                      </button>
                     </div>
                   )}
-                  {recordingState === 'recorded' && (
+                  {recordingState === "recorded" && (
                     <div className="space-y-3">
-                      <video src={recordedUrl} controls className="w-full rounded-lg bg-black max-h-[300px]" />
+                      <video
+                        src={recordedUrl}
+                        controls
+                        className="w-full rounded-lg bg-black max-h-[300px]"
+                      />
                       <div className="flex gap-2">
-                        <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload'}</button>
-                        <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm">Discard</button>
+                        <button
+                          type="button"
+                          onClick={handleUploadVideo}
+                          disabled={uploading}
+                          className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+                        >
+                          {uploading ? "Uploading..." : "Upload"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={discardRecording}
+                          className="px-4 py-2 text-gray-500 text-sm"
+                        >
+                          Discard
+                        </button>
                       </div>
                     </div>
                   )}
@@ -1091,55 +1711,121 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
               )}
               {videoUrl && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
-                  <video src={videoUrl} controls className="w-full rounded-lg bg-black max-h-[300px]" />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Screen Recording
+                  </label>
+                  <video
+                    src={videoUrl}
+                    controls
+                    className="w-full rounded-lg bg-black max-h-[300px]"
+                  />
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Feedback</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Feedback
+                </label>
                 {isEditable ? (
-                  <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={form.overall_feedback} onChange={(e) => setForm({ ...form, overall_feedback: e.target.value })} placeholder="Written feedback about the recording..." />
+                  <textarea
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                    value={form.overall_feedback}
+                    onChange={(e) =>
+                      setForm({ ...form, overall_feedback: e.target.value })
+                    }
+                    placeholder="Written feedback about the recording..."
+                  />
                 ) : (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{form.overall_feedback}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {form.overall_feedback}
+                  </p>
                 )}
               </div>
             </>
           )}
 
-          {serviceType === 'document' && (
+          {serviceType === "document" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Documentation <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Documentation <span className="text-red-500">*</span>
+              </label>
               {isEditable ? (
-                <textarea rows={8} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary-500" value={form.document_content} onChange={(e) => setForm({ ...form, document_content: e.target.value })} placeholder="Write step-by-step documentation of the user journey..." />
+                <textarea
+                  rows={8}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary-500"
+                  value={form.document_content}
+                  onChange={(e) =>
+                    setForm({ ...form, document_content: e.target.value })
+                  }
+                  placeholder="Write step-by-step documentation of the user journey..."
+                />
               ) : (
-                <div className="bg-gray-50 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap">{form.document_content}</div>
+                <div className="bg-gray-50 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap">
+                  {form.document_content}
+                </div>
               )}
             </div>
           )}
 
-          {serviceType === 'voiceover' && (
+          {serviceType === "voiceover" && (
             <>
               {isEditable && !videoUrl && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Narrated Recording <span className="text-red-500">*</span></label>
-                  <p className="text-xs text-gray-400 mb-2">Record your screen with microphone enabled. Narrate your experience as you use the app.</p>
-                  {recordingState === 'idle' && (
-                    <button type="button" onClick={startRecording} className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium">
-                      <span className="w-3 h-3 rounded-full bg-red-500" />Start Narrated Recording
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Narrated Recording <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Record your screen with microphone enabled. Narrate your
+                    experience as you use the app.
+                  </p>
+                  {recordingState === "idle" && (
+                    <button
+                      type="button"
+                      onClick={startRecording}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium"
+                    >
+                      <span className="w-3 h-3 rounded-full bg-red-500" />
+                      Start Narrated Recording
                     </button>
                   )}
-                  {recordingState === 'recording' && (
+                  {recordingState === "recording" && (
                     <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-2 text-sm text-red-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />Recording...</span>
-                      <button type="button" onClick={stopRecording} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium">Stop</button>
+                      <span className="flex items-center gap-2 text-sm text-red-600 font-medium">
+                        <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                        Recording...
+                      </span>
+                      <button
+                        type="button"
+                        onClick={stopRecording}
+                        className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium"
+                      >
+                        Stop
+                      </button>
                     </div>
                   )}
-                  {recordingState === 'recorded' && (
+                  {recordingState === "recorded" && (
                     <div className="space-y-3">
-                      <video src={recordedUrl} controls className="w-full rounded-lg bg-black max-h-[300px]" />
+                      <video
+                        src={recordedUrl}
+                        controls
+                        className="w-full rounded-lg bg-black max-h-[300px]"
+                      />
                       <div className="flex gap-2">
-                        <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload'}</button>
-                        <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm">Discard</button>
+                        <button
+                          type="button"
+                          onClick={handleUploadVideo}
+                          disabled={uploading}
+                          className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+                        >
+                          {uploading ? "Uploading..." : "Upload"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={discardRecording}
+                          className="px-4 py-2 text-gray-500 text-sm"
+                        >
+                          Discard
+                        </button>
                       </div>
                     </div>
                   )}
@@ -1147,16 +1833,34 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
               )}
               {videoUrl && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Narrated Recording</label>
-                  <video src={videoUrl} controls className="w-full rounded-lg bg-black max-h-[300px]" />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Narrated Recording
+                  </label>
+                  <video
+                    src={videoUrl}
+                    controls
+                    className="w-full rounded-lg bg-black max-h-[300px]"
+                  />
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Transcript / Notes</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Transcript / Notes
+                </label>
                 {isEditable ? (
-                  <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={form.transcript} onChange={(e) => setForm({ ...form, transcript: e.target.value })} placeholder="Optional written transcript or notes..." />
+                  <textarea
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                    value={form.transcript}
+                    onChange={(e) =>
+                      setForm({ ...form, transcript: e.target.value })
+                    }
+                    placeholder="Optional written transcript or notes..."
+                  />
                 ) : (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{form.transcript || 'No transcript'}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {form.transcript || "No transcript"}
+                  </p>
                 )}
               </div>
             </>
@@ -1165,19 +1869,53 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
           {/* General Screenshots */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700">Screenshots ({form.screenshots.length})</label>
-              {isEditable && <button type="button" onClick={() => setShowGeneralAnnotator(true)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">+ Add Screenshot</button>}
+              <label className="block text-sm font-medium text-gray-700">
+                Screenshots ({form.screenshots.length})
+              </label>
+              {isEditable && (
+                <button
+                  type="button"
+                  onClick={() => setShowGeneralAnnotator(true)}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  + Add Screenshot
+                </button>
+              )}
             </div>
-            <ScreenshotAnnotator isOpen={showGeneralAnnotator} onClose={() => setShowGeneralAnnotator(false)} onComplete={(url) => setForm((f) => ({ ...f, screenshots: [...f.screenshots, url] }))} submissionId={submission.id} />
+            <ScreenshotAnnotator
+              isOpen={showGeneralAnnotator}
+              onClose={() => setShowGeneralAnnotator(false)}
+              onComplete={(url) =>
+                setForm((f) => ({ ...f, screenshots: [...f.screenshots, url] }))
+              }
+              submissionId={submission.id}
+            />
             {form.screenshots.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {form.screenshots.map((url, i) => (
                   <div key={i} className="relative group">
                     <a href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt={`Screenshot ${i + 1}`} className="h-20 rounded border border-gray-200 object-cover hover:opacity-80" />
+                      <img
+                        src={url}
+                        alt={`Screenshot ${i + 1}`}
+                        className="h-20 rounded border border-gray-200 object-cover hover:opacity-80"
+                      />
                     </a>
                     {isEditable && (
-                      <button type="button" onClick={() => setForm((f) => ({ ...f, screenshots: f.screenshots.filter((_, j) => j !== i) }))} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            screenshots: f.screenshots.filter(
+                              (_, j) => j !== i,
+                            ),
+                          }))
+                        }
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        &times;
+                      </button>
                     )}
                   </div>
                 ))}
@@ -1190,8 +1928,13 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
           {/* End session button */}
           {isEditable && sessionStarted && !sessionEnded && (
             <div className="pt-2">
-              <button type="button" onClick={handleEndSession} disabled={uploadingRrweb} className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium disabled:opacity-50">
-                {uploadingRrweb ? 'Uploading session...' : 'End Session'}
+              <button
+                type="button"
+                onClick={handleEndSession}
+                disabled={uploadingRrweb}
+                className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium disabled:opacity-50"
+              >
+                {uploadingRrweb ? "Uploading session..." : "End Session"}
               </button>
             </div>
           )}
@@ -1199,33 +1942,43 @@ function V2TesterSubmission({ submission, onUpdate, setError }) {
           {/* Actions — only after session ended */}
           {isEditable && sessionEnded && (
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={handleSave} disabled={saving} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50">
-                {saving ? 'Saving...' : 'Save Draft'}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save Draft"}
               </button>
-              <button type="button" onClick={handleSubmit} disabled={saving} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50">
-                {saving ? 'Submitting...' : 'Submit'}
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50"
+              >
+                {saving ? "Submitting..." : "Submit"}
               </button>
             </div>
           )}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ============== Bid Payment Form ==============
 
 function BidPaymentForm({ bid, onSuccess }) {
-  const stripe = useStripe()
-  const elements = useElements()
-  const [paying, setPaying] = useState(false)
-  const [payError, setPayError] = useState('')
+  const stripe = useStripe();
+  const elements = useElements();
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState("");
 
   const handlePay = async (e) => {
-    e.preventDefault()
-    if (!stripe || !elements) return
-    setPaying(true)
-    setPayError('')
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setPaying(true);
+    setPayError("");
 
     const { error, paymentIntent } = await stripe.confirmPayment({
       // Without a return_url Stripe cannot send the payer to their bank for
@@ -1233,147 +1986,216 @@ function BidPaymentForm({ bid, onSuccess }) {
       // needs authenticating rather than challenging it.
       confirmParams: { return_url: window.location.href },
       elements,
-      redirect: 'if_required',
-    })
+      redirect: "if_required",
+    });
     if (error) {
-      setPayError(error.message)
-      setPaying(false)
-      return
+      setPayError(error.message);
+      setPaying(false);
+      return;
     }
 
     // No error is not the same as paid. An intent can come back
     // `requires_action` with no error at all, and treating that as success
     // marked a job paid that nobody had paid for.
-    const status = paymentIntent?.status
-    if (status !== 'succeeded' && status !== 'processing') {
-      setPayError('That payment was not completed. Please try again.')
-      setPaying(false)
-      return
+    const status = paymentIntent?.status;
+    if (status !== "succeeded" && status !== "processing") {
+      setPayError("That payment was not completed. Please try again.");
+      setPaying(false);
+      return;
     }
 
     try {
-      onSuccess()
+      onSuccess();
     } catch {
-      setPayError('Payment confirmed but failed to update. Refresh the page.')
+      setPayError("Payment confirmed but failed to update. Refresh the page.");
     } finally {
-      setPaying(false)
+      setPaying(false);
     }
-  }
+  };
 
   return (
     <form onSubmit={handlePay}>
       <PaymentElement />
-      {payError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded mt-4">{payError}</div>}
-      <button type="submit" disabled={!stripe || paying} className="w-full mt-5 px-5 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-semibold disabled:opacity-50">
-        {paying ? 'Processing...' : `Pay $${bid.total_charge?.toFixed(2)}`}
+      {payError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded mt-4">
+          {payError}
+        </div>
+      )}
+      <button
+        type="submit"
+        disabled={!stripe || paying}
+        className="w-full mt-5 px-5 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-semibold disabled:opacity-50"
+      >
+        {paying ? "Processing..." : `Pay $${bid.total_charge?.toFixed(2)}`}
       </button>
     </form>
-  )
+  );
 }
 
 // ============== V1 Builder Submission Card (unchanged) ==============
 
 function BuilderSubmissionCard({ submission, onUpdate, setError }) {
-  const [rejectFeedback, setRejectFeedback] = useState('')
-  const [showReject, setShowReject] = useState(false)
-  const [processing, setProcessing] = useState(false)
-  const [rating, setRating] = useState(0)
-  const videoRef = useRef(null)
+  const [rejectFeedback, setRejectFeedback] = useState("");
+  const [showReject, setShowReject] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [rating, setRating] = useState(0);
+  const videoRef = useRef(null);
 
   const handleApprove = async () => {
-    if (!confirm('Approve this submission? This will release payment to the tester.')) return
-    setProcessing(true)
+    if (
+      !confirm(
+        "Approve this submission? This will release payment to the tester.",
+      )
+    )
+      return;
+    setProcessing(true);
     try {
-      await axios.post(`/api/submissions/${submission.id}/approve`, { feedback: '', rating: rating || null })
-      onUpdate()
+      await axios.post(`/api/submissions/${submission.id}/approve`, {
+        feedback: "",
+        rating: rating || null,
+      });
+      onUpdate();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to approve')
+      setError(err.response?.data?.detail || "Failed to approve");
     } finally {
-      setProcessing(false)
+      setProcessing(false);
     }
-  }
+  };
 
   const handleReject = async () => {
-    if (!rejectFeedback.trim()) { setError('Please provide feedback for the rejection'); return }
-    if (!confirm('Reject this submission? The tester will see your feedback.')) return
-    setProcessing(true)
-    try {
-      await axios.post(`/api/submissions/${submission.id}/reject`, { feedback: rejectFeedback })
-      setShowReject(false)
-      onUpdate()
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to reject')
-    } finally {
-      setProcessing(false)
+    if (!rejectFeedback.trim()) {
+      setError("Please provide feedback for the rejection");
+      return;
     }
-  }
+    if (!confirm("Reject this submission? The tester will see your feedback."))
+      return;
+    setProcessing(true);
+    try {
+      await axios.post(`/api/submissions/${submission.id}/reject`, {
+        feedback: rejectFeedback,
+      });
+      setShowReject(false);
+      onUpdate();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to reject");
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const handleTagSeek = (seconds) => {
-    if (videoRef.current) { videoRef.current.currentTime = seconds; videoRef.current.play() }
-  }
+    if (videoRef.current) {
+      videoRef.current.currentTime = seconds;
+      videoRef.current.play();
+    }
+  };
 
   const subStatusColors = {
-    draft: 'bg-gray-100 text-gray-600',
-    submitted: 'bg-amber-100 text-amber-700',
-    approved: 'bg-primary-100 text-primary-700',
-    rejected: 'bg-red-100 text-red-700',
-  }
+    draft: "bg-gray-100 text-gray-600",
+    submitted: "bg-amber-100 text-amber-700",
+    approved: "bg-primary-100 text-primary-700",
+    rejected: "bg-red-100 text-red-700",
+  };
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-900">{submission.tester_name}</span>
-          <span className="text-gray-400 text-sm">{submission.tester_email}</span>
+          <span className="font-medium text-gray-900">
+            {submission.tester_name}
+          </span>
+          <span className="text-gray-400 text-sm">
+            {submission.tester_email}
+          </span>
           {submission.service_type && (
-            <span className={`text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[submission.service_type] || 'bg-gray-100 text-gray-600'}`}>{submission.service_type}</span>
+            <span
+              className={`text-xs px-2 py-0.5 rounded font-medium ${SERVICE_COLORS[submission.service_type] || "bg-gray-100 text-gray-600"}`}
+            >
+              {submission.service_type}
+            </span>
           )}
-          {submission.payout_amount && <span className="text-xs text-gray-400">${submission.payout_amount.toFixed(2)}</span>}
+          {submission.payout_amount && (
+            <span className="text-xs text-gray-400">
+              ${submission.payout_amount.toFixed(2)}
+            </span>
+          )}
         </div>
-        <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${subStatusColors[submission.status]}`}>{submission.status}</span>
+        <span
+          className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${subStatusColors[submission.status]}`}
+        >
+          {submission.status}
+        </span>
       </div>
 
-      {submission.status === 'draft' && (
-        <p className="text-gray-400 italic">Tester is still working on their submission...</p>
+      {submission.status === "draft" && (
+        <p className="text-gray-400 italic">
+          Tester is still working on their submission...
+        </p>
       )}
 
-      {submission.status !== 'draft' && (
+      {submission.status !== "draft" && (
         <>
           {submission.video_url && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-500 mb-2">Screen Recording</label>
-              <video ref={videoRef} src={submission.video_url} controls className="w-full rounded-lg bg-black max-h-[400px]" />
+              <label className="block text-sm font-medium text-gray-500 mb-2">
+                Screen Recording
+              </label>
+              <video
+                ref={videoRef}
+                src={submission.video_url}
+                controls
+                className="w-full rounded-lg bg-black max-h-[400px]"
+              />
             </div>
           )}
 
           {submission.document_content && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-500 mb-2">Documentation</label>
-              <div className="bg-gray-50 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap">{submission.document_content}</div>
+              <label className="block text-sm font-medium text-gray-500 mb-2">
+                Documentation
+              </label>
+              <div className="bg-gray-50 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap">
+                {submission.document_content}
+              </div>
             </div>
           )}
 
           {submission.transcript && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-500 mb-2">Transcript</label>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{submission.transcript}</p>
+              <label className="block text-sm font-medium text-gray-500 mb-2">
+                Transcript
+              </label>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                {submission.transcript}
+              </p>
             </div>
           )}
 
           <div className="space-y-4">
             {submission.overall_feedback && (
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">Overall Feedback</label>
-                <p className="text-gray-700 whitespace-pre-wrap">{submission.overall_feedback}</p>
+                <label className="block text-sm font-medium text-gray-500 mb-1">
+                  Overall Feedback
+                </label>
+                <p className="text-gray-700 whitespace-pre-wrap">
+                  {submission.overall_feedback}
+                </p>
               </div>
             )}
 
             {submission.usability_score && (
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">Usability Score</label>
+                <label className="block text-sm font-medium text-gray-500 mb-1">
+                  Usability Score
+                </label>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((n) => (
-                    <span key={n} className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${n <= submission.usability_score ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-400'}`}>{n}</span>
+                    <span
+                      key={n}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${n <= submission.usability_score ? "bg-primary-600 text-white" : "bg-gray-100 text-gray-400"}`}
+                    >
+                      {n}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -1381,19 +2203,41 @@ function BuilderSubmissionCard({ submission, onUpdate, setError }) {
 
             {submission.bug_reports?.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-2">Bug Reports ({submission.bug_reports.length})</label>
+                <label className="block text-sm font-medium text-gray-500 mb-2">
+                  Bug Reports ({submission.bug_reports.length})
+                </label>
                 <div className="space-y-2">
                   {submission.bug_reports.map((bug, i) => (
-                    <div key={i} className="bg-gray-50 border border-gray-100 rounded p-3">
+                    <div
+                      key={i}
+                      className="bg-gray-50 border border-gray-100 rounded p-3"
+                    >
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-sm">{bug.title}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${severityColors[bug.severity] || 'bg-gray-100 text-gray-600'}`}>{bug.severity}</span>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full ${severityColors[bug.severity] || "bg-gray-100 text-gray-600"}`}
+                        >
+                          {bug.severity}
+                        </span>
                       </div>
                       <p className="text-sm text-gray-600">{bug.description}</p>
-                      {bug.steps_to_reproduce && <p className="text-xs text-gray-500 mt-1"><strong>Steps:</strong> {bug.steps_to_reproduce}</p>}
+                      {bug.steps_to_reproduce && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          <strong>Steps:</strong> {bug.steps_to_reproduce}
+                        </p>
+                      )}
                       {bug.screenshot_url && (
-                        <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
-                          <img src={bug.screenshot_url} alt="Bug screenshot" className="h-24 rounded border border-gray-200 object-cover hover:opacity-80" />
+                        <a
+                          href={bug.screenshot_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block mt-2"
+                        >
+                          <img
+                            src={bug.screenshot_url}
+                            alt="Bug screenshot"
+                            className="h-24 rounded border border-gray-200 object-cover hover:opacity-80"
+                          />
                         </a>
                       )}
                     </div>
@@ -1404,18 +2248,33 @@ function BuilderSubmissionCard({ submission, onUpdate, setError }) {
 
             {submission.suggestions && (
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">Suggestions</label>
-                <p className="text-gray-700 whitespace-pre-wrap">{submission.suggestions}</p>
+                <label className="block text-sm font-medium text-gray-500 mb-1">
+                  Suggestions
+                </label>
+                <p className="text-gray-700 whitespace-pre-wrap">
+                  {submission.suggestions}
+                </p>
               </div>
             )}
 
             {submission.screenshots?.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-2">Screenshots ({submission.screenshots.length})</label>
+                <label className="block text-sm font-medium text-gray-500 mb-2">
+                  Screenshots ({submission.screenshots.length})
+                </label>
                 <div className="flex flex-wrap gap-2">
                   {submission.screenshots.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt={`Screenshot ${i + 1}`} className="h-24 rounded border border-gray-200 object-cover hover:opacity-80" />
+                    <a
+                      key={i}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <img
+                        src={url}
+                        alt={`Screenshot ${i + 1}`}
+                        className="h-24 rounded border border-gray-200 object-cover hover:opacity-80"
+                      />
                     </a>
                   ))}
                 </div>
@@ -1424,32 +2283,61 @@ function BuilderSubmissionCard({ submission, onUpdate, setError }) {
           </div>
 
           {submission.video_url && (
-            <VideoTagPanel submission={submission} onUpdate={onUpdate} setError={setError} onSeek={handleTagSeek} />
+            <VideoTagPanel
+              submission={submission}
+              onUpdate={onUpdate}
+              setError={setError}
+              onSeek={handleTagSeek}
+            />
           )}
 
           {submission.rrweb_recording_url && (
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-500 mb-2">Session Replay</label>
+              <label className="block text-sm font-medium text-gray-500 mb-2">
+                Session Replay
+              </label>
               {submission.session_duration_seconds > 0 && (
-                <p className="text-sm text-gray-700 mb-2">Tester worked for <strong>{formatDurationBadge(submission.session_duration_seconds)}</strong></p>
+                <p className="text-sm text-gray-700 mb-2">
+                  Tester worked for{" "}
+                  <strong>
+                    {formatDurationBadge(submission.session_duration_seconds)}
+                  </strong>
+                </p>
               )}
-              <RrwebReplayPlayer rrwebUrl={submission.rrweb_recording_url} sessionDuration={submission.session_duration_seconds} />
+              <RrwebReplayPlayer
+                rrwebUrl={submission.rrweb_recording_url}
+                sessionDuration={submission.session_duration_seconds}
+              />
             </div>
           )}
 
           {submission.review_feedback && (
             <div className="mt-4 bg-gray-50 border border-gray-200 rounded p-3">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Your Review Feedback</label>
-              <p className="text-sm text-gray-700">{submission.review_feedback}</p>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Your Review Feedback
+              </label>
+              <p className="text-sm text-gray-700">
+                {submission.review_feedback}
+              </p>
             </div>
           )}
 
           {submission.builder_rating && (
             <div className="mt-3">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Your Rating</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Your Rating
+              </label>
               <div className="flex">
                 {[1, 2, 3, 4, 5].map((n) => (
-                  <svg key={n} width="16" height="16" viewBox="0 0 24 24" fill={n <= submission.builder_rating ? '#f59e0b' : 'none'} stroke="#f59e0b" strokeWidth="2">
+                  <svg
+                    key={n}
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill={n <= submission.builder_rating ? "#f59e0b" : "none"}
+                    stroke="#f59e0b"
+                    strokeWidth="2"
+                  >
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                   </svg>
                 ))}
@@ -1457,32 +2345,79 @@ function BuilderSubmissionCard({ submission, onUpdate, setError }) {
             </div>
           )}
 
-          {submission.status === 'submitted' && (
+          {submission.status === "submitted" && (
             <div className="mt-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Rate this tester (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rate this tester (optional)
+                </label>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((n) => (
-                    <button key={n} type="button" onClick={() => setRating(rating === n ? 0 : n)} className="p-0.5">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill={n <= rating ? '#f59e0b' : 'none'} stroke="#f59e0b" strokeWidth="2" className="transition-colors">
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setRating(rating === n ? 0 : n)}
+                      className="p-0.5"
+                    >
+                      <svg
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill={n <= rating ? "#f59e0b" : "none"}
+                        stroke="#f59e0b"
+                        strokeWidth="2"
+                        className="transition-colors"
+                      >
                         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                       </svg>
                     </button>
                   ))}
-                  {rating > 0 && <span className="text-sm text-gray-500 self-center ml-1">{rating}/5</span>}
+                  {rating > 0 && (
+                    <span className="text-sm text-gray-500 self-center ml-1">
+                      {rating}/5
+                    </span>
+                  )}
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <button onClick={handleApprove} disabled={processing} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">Approve</button>
+                <button
+                  onClick={handleApprove}
+                  disabled={processing}
+                  className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+                >
+                  Approve
+                </button>
                 {!showReject ? (
-                  <button onClick={() => setShowReject(true)} className="px-4 py-2 bg-white border border-red-300 text-red-600 text-sm rounded-lg hover:bg-red-50 font-medium">Reject</button>
+                  <button
+                    onClick={() => setShowReject(true)}
+                    className="px-4 py-2 bg-white border border-red-300 text-red-600 text-sm rounded-lg hover:bg-red-50 font-medium"
+                  >
+                    Reject
+                  </button>
                 ) : (
                   <div className="flex-1 space-y-2">
-                    <textarea rows={2} placeholder="Explain why you're rejecting..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500" value={rejectFeedback} onChange={(e) => setRejectFeedback(e.target.value)} />
+                    <textarea
+                      rows={2}
+                      placeholder="Explain why you're rejecting..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500"
+                      value={rejectFeedback}
+                      onChange={(e) => setRejectFeedback(e.target.value)}
+                    />
                     <div className="flex gap-2">
-                      <button onClick={handleReject} disabled={processing} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium disabled:opacity-50">Confirm Reject</button>
-                      <button onClick={() => setShowReject(false)} className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Cancel</button>
+                      <button
+                        onClick={handleReject}
+                        disabled={processing}
+                        className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium disabled:opacity-50"
+                      >
+                        Confirm Reject
+                      </button>
+                      <button
+                        onClick={() => setShowReject(false)}
+                        className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1492,179 +2427,251 @@ function BuilderSubmissionCard({ submission, onUpdate, setError }) {
         </>
       )}
     </div>
-  )
+  );
 }
 
 // ============== V1 Tester Submission (unchanged from original) ==============
 
 function TesterSubmission({ submission, onUpdate, setError }) {
   const [form, setForm] = useState({
-    overall_feedback: submission.overall_feedback || '',
+    overall_feedback: submission.overall_feedback || "",
     usability_score: submission.usability_score || null,
-    suggestions: submission.suggestions || '',
+    suggestions: submission.suggestions || "",
     bug_reports: submission.bug_reports || [],
     screenshots: submission.screenshots || [],
-  })
-  const [saving, setSaving] = useState(false)
-  const [showBugForm, setShowBugForm] = useState(false)
-  const [bugForm, setBugForm] = useState({ title: '', description: '', severity: 'medium', steps_to_reproduce: '', screenshot_url: '' })
-  const [showBugAnnotator, setShowBugAnnotator] = useState(false)
-  const [showGeneralAnnotator, setShowGeneralAnnotator] = useState(false)
-  const [recordingState, setRecordingState] = useState('idle')
-  const [mediaRecorder, setMediaRecorder] = useState(null)
-  const [recordedBlob, setRecordedBlob] = useState(null)
-  const [recordedUrl, setRecordedUrl] = useState(null)
-  const [uploading, setUploading] = useState(false)
-  const [videoUrl, setVideoUrl] = useState(submission.video_url || null)
-  const videoRef = useRef(null)
+  });
+  const [saving, setSaving] = useState(false);
+  const [showBugForm, setShowBugForm] = useState(false);
+  const [bugForm, setBugForm] = useState({
+    title: "",
+    description: "",
+    severity: "medium",
+    steps_to_reproduce: "",
+    screenshot_url: "",
+  });
+  const [showBugAnnotator, setShowBugAnnotator] = useState(false);
+  const [showGeneralAnnotator, setShowGeneralAnnotator] = useState(false);
+  const [recordingState, setRecordingState] = useState("idle");
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [recordedBlob, setRecordedBlob] = useState(null);
+  const [recordedUrl, setRecordedUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [videoUrl, setVideoUrl] = useState(submission.video_url || null);
+  const videoRef = useRef(null);
 
   // Session recording
-  const rrweb = useRrwebRecorder()
-  const [sessionStarted, setSessionStarted] = useState(false)
-  const [sessionEnded, setSessionEnded] = useState(!!submission.rrweb_recording_url)
-  const [uploadingRrweb, setUploadingRrweb] = useState(false)
+  const rrweb = useRrwebRecorder();
+  const [sessionStarted, setSessionStarted] = useState(false);
+  const [sessionEnded, setSessionEnded] = useState(
+    !!submission.rrweb_recording_url,
+  );
+  const [uploadingRrweb, setUploadingRrweb] = useState(false);
 
-  const isEditable = submission.status === 'draft'
-  const supportsScreenRecording = typeof navigator !== 'undefined' && navigator.mediaDevices?.getDisplayMedia
+  const isEditable = submission.status === "draft";
+  const supportsScreenRecording =
+    typeof navigator !== "undefined" && navigator.mediaDevices?.getDisplayMedia;
 
   const handleStartSession = () => {
-    rrweb.startSession()
-    setSessionStarted(true)
-    axios.put(`/api/submissions/${submission.id}/session-timing`, {
-      session_started_at: new Date().toISOString(),
-    }).catch(() => {})
-  }
+    rrweb.startSession();
+    setSessionStarted(true);
+    axios
+      .put(`/api/submissions/${submission.id}/session-timing`, {
+        session_started_at: new Date().toISOString(),
+      })
+      .catch(() => {});
+  };
 
   const handleEndSession = async () => {
-    const result = rrweb.endSession()
-    setUploadingRrweb(true)
+    const result = rrweb.endSession();
+    setUploadingRrweb(true);
     try {
-      await axios.post(`/api/submissions/${submission.id}/upload-rrweb`, result.blob, {
-        headers: { 'Content-Type': 'application/gzip' },
-      })
+      await axios.post(
+        `/api/submissions/${submission.id}/upload-rrweb`,
+        result.blob,
+        {
+          headers: { "Content-Type": "application/gzip" },
+        },
+      );
       await axios.put(`/api/submissions/${submission.id}/session-timing`, {
         session_ended_at: result.endedAt,
         session_duration_seconds: result.duration,
-      })
-      setSessionEnded(true)
+      });
+      setSessionEnded(true);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to upload session recording')
+      setError(
+        err.response?.data?.detail || "Failed to upload session recording",
+      );
     } finally {
-      setUploadingRrweb(false)
+      setUploadingRrweb(false);
     }
-  }
+  };
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: { mediaSource: 'screen' }, audio: true })
-      const chunks = []
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { mediaSource: "screen" },
+        audio: true,
+      });
+      const chunks = [];
+      const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
       recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop())
-        const blob = new Blob(chunks, { type: 'video/webm' })
-        setRecordedBlob(blob)
-        setRecordedUrl(URL.createObjectURL(blob))
-        setRecordingState('recorded')
-      }
-      stream.getVideoTracks()[0].onended = () => { if (recorder.state === 'recording') recorder.stop() }
-      recorder.start()
-      setMediaRecorder(recorder)
-      setRecordingState('recording')
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks, { type: "video/webm" });
+        setRecordedBlob(blob);
+        setRecordedUrl(URL.createObjectURL(blob));
+        setRecordingState("recorded");
+      };
+      stream.getVideoTracks()[0].onended = () => {
+        if (recorder.state === "recording") recorder.stop();
+      };
+      recorder.start();
+      setMediaRecorder(recorder);
+      setRecordingState("recording");
     } catch (err) {
-      if (err.name !== 'NotAllowedError') setError('Failed to start screen recording')
+      if (err.name !== "NotAllowedError")
+        setError("Failed to start screen recording");
     }
-  }
+  };
 
-  const stopRecording = () => { if (mediaRecorder?.state === 'recording') mediaRecorder.stop() }
+  const stopRecording = () => {
+    if (mediaRecorder?.state === "recording") mediaRecorder.stop();
+  };
 
   const handleUploadVideo = async () => {
-    if (!recordedBlob) return
-    setUploading(true)
-    setError('')
+    if (!recordedBlob) return;
+    setUploading(true);
+    setError("");
     try {
-      const formData = new FormData()
-      formData.append('file', recordedBlob, 'recording.webm')
-      const res = await axios.post(`/api/submissions/${submission.id}/upload-video`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-      setVideoUrl(res.data.video_url)
-      setRecordedBlob(null)
-      setRecordedUrl(null)
-      setRecordingState('idle')
+      const formData = new FormData();
+      formData.append("file", recordedBlob, "recording.webm");
+      const res = await axios.post(
+        `/api/submissions/${submission.id}/upload-video`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+      setVideoUrl(res.data.video_url);
+      setRecordedBlob(null);
+      setRecordedUrl(null);
+      setRecordingState("idle");
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to upload video')
+      setError(err.response?.data?.detail || "Failed to upload video");
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }
+  };
 
   const discardRecording = () => {
-    if (recordedUrl) URL.revokeObjectURL(recordedUrl)
-    setRecordedBlob(null)
-    setRecordedUrl(null)
-    setRecordingState('idle')
-  }
+    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    setRecordedBlob(null);
+    setRecordedUrl(null);
+    setRecordingState("idle");
+  };
 
   const handleTagSeek = (seconds) => {
-    if (videoRef.current) { videoRef.current.currentTime = seconds; videoRef.current.play() }
-  }
+    if (videoRef.current) {
+      videoRef.current.currentTime = seconds;
+      videoRef.current.play();
+    }
+  };
 
   const handleSave = async () => {
-    setSaving(true)
+    setSaving(true);
     try {
-      await axios.put(`/api/submissions/${submission.id}`, form)
-      setError('')
+      await axios.put(`/api/submissions/${submission.id}`, form);
+      setError("");
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save')
+      setError(err.response?.data?.detail || "Failed to save");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleSubmit = async () => {
-    if (!form.overall_feedback.trim()) { setError('Overall feedback is required'); return }
-    if (!form.usability_score) { setError('Usability score is required'); return }
-    if (!confirm("Submit your feedback? You won't be able to edit it after submission.")) return
-    setSaving(true)
-    try {
-      await axios.put(`/api/submissions/${submission.id}`, form)
-      await axios.post(`/api/submissions/${submission.id}/submit`)
-      onUpdate()
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to submit')
-    } finally {
-      setSaving(false)
+    if (!form.overall_feedback.trim()) {
+      setError("Overall feedback is required");
+      return;
     }
-  }
+    if (!form.usability_score) {
+      setError("Usability score is required");
+      return;
+    }
+    if (
+      !confirm(
+        "Submit your feedback? You won't be able to edit it after submission.",
+      )
+    )
+      return;
+    setSaving(true);
+    try {
+      await axios.put(`/api/submissions/${submission.id}`, form);
+      await axios.post(`/api/submissions/${submission.id}/submit`);
+      onUpdate();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to submit");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const addBug = () => {
-    if (!bugForm.title.trim() || !bugForm.description.trim()) return
-    const bug = { ...bugForm }
-    if (!bug.screenshot_url) delete bug.screenshot_url
-    setForm({ ...form, bug_reports: [...form.bug_reports, bug] })
-    setBugForm({ title: '', description: '', severity: 'medium', steps_to_reproduce: '', screenshot_url: '' })
-    setShowBugForm(false)
-  }
+    if (!bugForm.title.trim() || !bugForm.description.trim()) return;
+    const bug = { ...bugForm };
+    if (!bug.screenshot_url) delete bug.screenshot_url;
+    setForm({ ...form, bug_reports: [...form.bug_reports, bug] });
+    setBugForm({
+      title: "",
+      description: "",
+      severity: "medium",
+      steps_to_reproduce: "",
+      screenshot_url: "",
+    });
+    setShowBugForm(false);
+  };
 
   const removeBug = (index) => {
-    setForm({ ...form, bug_reports: form.bug_reports.filter((_, i) => i !== index) })
-  }
+    setForm({
+      ...form,
+      bug_reports: form.bug_reports.filter((_, i) => i !== index),
+    });
+  };
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-gray-900 mb-4">{isEditable ? 'Your Feedback' : 'Your Submission'}</h2>
+      <h2 className="text-xl font-bold text-gray-900 mb-4">
+        {isEditable ? "Your Feedback" : "Your Submission"}
+      </h2>
 
       {submission.review_feedback && (
-        <div className={`mb-6 border rounded-lg p-4 ${submission.status === 'approved' ? 'bg-primary-50 border-primary-200' : 'bg-red-50 border-red-200'}`}>
-          <p className="text-sm font-medium mb-1">{submission.status === 'approved' ? 'Approved' : 'Rejected'} by builder</p>
-          {submission.review_feedback && <p className="text-sm text-gray-700">{submission.review_feedback}</p>}
+        <div
+          className={`mb-6 border rounded-lg p-4 ${submission.status === "approved" ? "bg-primary-50 border-primary-200" : "bg-red-50 border-red-200"}`}
+        >
+          <p className="text-sm font-medium mb-1">
+            {submission.status === "approved" ? "Approved" : "Rejected"} by
+            builder
+          </p>
+          {submission.review_feedback && (
+            <p className="text-sm text-gray-700">
+              {submission.review_feedback}
+            </p>
+          )}
         </div>
       )}
 
       {/* Session gate */}
       {isEditable && !sessionStarted && !sessionEnded && (
         <div className="bg-white border border-gray-200 rounded-lg p-8 text-center mb-6">
-          <p className="text-sm text-gray-500 mb-4">Start a session to begin working. Your workspace activity will be recorded.</p>
-          <button type="button" onClick={handleStartSession} className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium text-sm">
+          <p className="text-sm text-gray-500 mb-4">
+            Start a session to begin working. Your workspace activity will be
+            recorded.
+          </p>
+          <button
+            type="button"
+            onClick={handleStartSession}
+            className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium text-sm"
+          >
             Start Session
           </button>
         </div>
@@ -1680,29 +2687,70 @@ function TesterSubmission({ submission, onUpdate, setError }) {
         <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-5">
           {isEditable && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Screen Recording
+              </label>
               {!supportsScreenRecording ? (
-                <p className="text-sm text-gray-400">Screen recording is not supported in this browser.</p>
+                <p className="text-sm text-gray-400">
+                  Screen recording is not supported in this browser.
+                </p>
               ) : videoUrl ? (
                 <div>
-                  <video src={videoUrl} controls className="w-full rounded-lg bg-black max-h-[360px]" />
-                  <p className="text-xs text-primary-600 mt-2 font-medium">Video uploaded successfully</p>
+                  <video
+                    src={videoUrl}
+                    controls
+                    className="w-full rounded-lg bg-black max-h-[360px]"
+                  />
+                  <p className="text-xs text-primary-600 mt-2 font-medium">
+                    Video uploaded successfully
+                  </p>
                 </div>
-              ) : recordingState === 'idle' ? (
-                <button type="button" onClick={startRecording} className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium">
-                  <span className="w-3 h-3 rounded-full bg-red-500" />Start Screen Recording
+              ) : recordingState === "idle" ? (
+                <button
+                  type="button"
+                  onClick={startRecording}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 font-medium"
+                >
+                  <span className="w-3 h-3 rounded-full bg-red-500" />
+                  Start Screen Recording
                 </button>
-              ) : recordingState === 'recording' ? (
+              ) : recordingState === "recording" ? (
                 <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-2 text-sm text-red-600 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />Recording...</span>
-                  <button type="button" onClick={stopRecording} className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium">Stop Recording</button>
+                  <span className="flex items-center gap-2 text-sm text-red-600 font-medium">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                    Recording...
+                  </span>
+                  <button
+                    type="button"
+                    onClick={stopRecording}
+                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 font-medium"
+                  >
+                    Stop Recording
+                  </button>
                 </div>
-              ) : recordingState === 'recorded' ? (
+              ) : recordingState === "recorded" ? (
                 <div className="space-y-3">
-                  <video src={recordedUrl} controls className="w-full rounded-lg bg-black max-h-[360px]" />
+                  <video
+                    src={recordedUrl}
+                    controls
+                    className="w-full rounded-lg bg-black max-h-[360px]"
+                  />
                   <div className="flex gap-2">
-                    <button type="button" onClick={handleUploadVideo} disabled={uploading} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{uploading ? 'Uploading...' : 'Upload Recording'}</button>
-                    <button type="button" onClick={discardRecording} className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Discard</button>
+                    <button
+                      type="button"
+                      onClick={handleUploadVideo}
+                      disabled={uploading}
+                      className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+                    >
+                      {uploading ? "Uploading..." : "Upload Recording"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={discardRecording}
+                      className="px-4 py-2 text-gray-500 text-sm hover:text-gray-700"
+                    >
+                      Discard
+                    </button>
                   </div>
                 </div>
               ) : null}
@@ -1711,82 +2759,247 @@ function TesterSubmission({ submission, onUpdate, setError }) {
 
           {!isEditable && videoUrl && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Screen Recording</label>
-              <video ref={videoRef} src={videoUrl} controls className="w-full rounded-lg bg-black max-h-[360px]" />
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Screen Recording
+              </label>
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                controls
+                className="w-full rounded-lg bg-black max-h-[360px]"
+              />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Overall Feedback <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Overall Feedback <span className="text-red-500">*</span>
+            </label>
             {isEditable ? (
-              <textarea rows={4} placeholder="Describe your experience using the app..." className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" value={form.overall_feedback} onChange={(e) => setForm({ ...form, overall_feedback: e.target.value })} />
+              <textarea
+                rows={4}
+                placeholder="Describe your experience using the app..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                value={form.overall_feedback}
+                onChange={(e) =>
+                  setForm({ ...form, overall_feedback: e.target.value })
+                }
+              />
             ) : (
-              <p className="text-gray-700 whitespace-pre-wrap">{form.overall_feedback}</p>
+              <p className="text-gray-700 whitespace-pre-wrap">
+                {form.overall_feedback}
+              </p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Usability Score <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Usability Score <span className="text-red-500">*</span>
+            </label>
             <div className="flex gap-2">
               {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} type="button" disabled={!isEditable} onClick={() => setForm({ ...form, usability_score: n })} className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${n <= (form.usability_score || 0) ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'} ${!isEditable ? 'cursor-default' : 'cursor-pointer'}`}>{n}</button>
+                <button
+                  key={n}
+                  type="button"
+                  disabled={!isEditable}
+                  onClick={() => setForm({ ...form, usability_score: n })}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${n <= (form.usability_score || 0) ? "bg-primary-600 text-white" : "bg-gray-100 text-gray-400 hover:bg-gray-200"} ${!isEditable ? "cursor-default" : "cursor-pointer"}`}
+                >
+                  {n}
+                </button>
               ))}
-              <span className="ml-2 text-sm text-gray-500 self-center">{form.usability_score ? ['', 'Poor', 'Below Average', 'Average', 'Good', 'Excellent'][form.usability_score] : 'Select a score'}</span>
+              <span className="ml-2 text-sm text-gray-500 self-center">
+                {form.usability_score
+                  ? [
+                      "",
+                      "Poor",
+                      "Below Average",
+                      "Average",
+                      "Good",
+                      "Excellent",
+                    ][form.usability_score]
+                  : "Select a score"}
+              </span>
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700">Bug Reports ({form.bug_reports.length})</label>
-              {isEditable && <button type="button" onClick={() => setShowBugForm(!showBugForm)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">{showBugForm ? 'Cancel' : '+ Add Bug'}</button>}
+              <label className="block text-sm font-medium text-gray-700">
+                Bug Reports ({form.bug_reports.length})
+              </label>
+              {isEditable && (
+                <button
+                  type="button"
+                  onClick={() => setShowBugForm(!showBugForm)}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  {showBugForm ? "Cancel" : "+ Add Bug"}
+                </button>
+              )}
             </div>
             {showBugForm && (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-3 space-y-3">
-                <input type="text" placeholder="Bug title" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.title} onChange={(e) => setBugForm({ ...bugForm, title: e.target.value })} />
-                <textarea rows={2} placeholder="Describe the bug..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.description} onChange={(e) => setBugForm({ ...bugForm, description: e.target.value })} />
+                <input
+                  type="text"
+                  placeholder="Bug title"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                  value={bugForm.title}
+                  onChange={(e) =>
+                    setBugForm({ ...bugForm, title: e.target.value })
+                  }
+                />
+                <textarea
+                  rows={2}
+                  placeholder="Describe the bug..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                  value={bugForm.description}
+                  onChange={(e) =>
+                    setBugForm({ ...bugForm, description: e.target.value })
+                  }
+                />
                 <div className="grid grid-cols-2 gap-3">
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.severity} onChange={(e) => setBugForm({ ...bugForm, severity: e.target.value })}>
-                    {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                    value={bugForm.severity}
+                    onChange={(e) =>
+                      setBugForm({ ...bugForm, severity: e.target.value })
+                    }
+                  >
+                    {SEVERITIES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
                   </select>
-                  <input type="text" placeholder="Steps to reproduce" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={bugForm.steps_to_reproduce} onChange={(e) => setBugForm({ ...bugForm, steps_to_reproduce: e.target.value })} />
+                  <input
+                    type="text"
+                    placeholder="Steps to reproduce"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                    value={bugForm.steps_to_reproduce}
+                    onChange={(e) =>
+                      setBugForm({
+                        ...bugForm,
+                        steps_to_reproduce: e.target.value,
+                      })
+                    }
+                  />
                 </div>
                 {bugForm.screenshot_url ? (
                   <div className="flex items-start gap-2">
-                    <a href={bugForm.screenshot_url} target="_blank" rel="noopener noreferrer">
-                      <img src={bugForm.screenshot_url} alt="Bug screenshot" className="h-20 rounded border border-gray-200 object-cover cursor-pointer hover:opacity-80" />
+                    <a
+                      href={bugForm.screenshot_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <img
+                        src={bugForm.screenshot_url}
+                        alt="Bug screenshot"
+                        className="h-20 rounded border border-gray-200 object-cover cursor-pointer hover:opacity-80"
+                      />
                     </a>
-                    <button type="button" onClick={() => setBugForm({ ...bugForm, screenshot_url: '' })} className="text-red-400 hover:text-red-600 text-xs mt-1">Remove</button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBugForm({ ...bugForm, screenshot_url: "" })
+                      }
+                      className="text-red-400 hover:text-red-600 text-xs mt-1"
+                    >
+                      Remove
+                    </button>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setShowBugAnnotator(true)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-600 font-medium">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
+                  <button
+                    type="button"
+                    onClick={() => setShowBugAnnotator(true)}
+                    className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-600 font-medium"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <path d="m21 15-5-5L5 21" />
+                    </svg>
                     Attach Screenshot
                   </button>
                 )}
-                <button type="button" onClick={addBug} className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium">Add Bug</button>
+                <button
+                  type="button"
+                  onClick={addBug}
+                  className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium"
+                >
+                  Add Bug
+                </button>
               </div>
             )}
-            <ScreenshotAnnotator isOpen={showBugAnnotator} onClose={() => setShowBugAnnotator(false)} onComplete={(url) => setBugForm({ ...bugForm, screenshot_url: url })} submissionId={submission.id} />
+            <ScreenshotAnnotator
+              isOpen={showBugAnnotator}
+              onClose={() => setShowBugAnnotator(false)}
+              onComplete={(url) =>
+                setBugForm({ ...bugForm, screenshot_url: url })
+              }
+              submissionId={submission.id}
+            />
             {form.bug_reports.length === 0 ? (
               <p className="text-sm text-gray-400">No bugs reported yet.</p>
             ) : (
               <div className="space-y-2">
                 {form.bug_reports.map((bug, i) => (
-                  <div key={i} className="bg-gray-50 border border-gray-100 rounded p-3">
+                  <div
+                    key={i}
+                    className="bg-gray-50 border border-gray-100 rounded p-3"
+                  >
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm">{bug.title}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${severityColors[bug.severity] || 'bg-gray-100 text-gray-600'}`}>{bug.severity}</span>
+                          <span className="font-medium text-sm">
+                            {bug.title}
+                          </span>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${severityColors[bug.severity] || "bg-gray-100 text-gray-600"}`}
+                          >
+                            {bug.severity}
+                          </span>
                         </div>
-                        <p className="text-sm text-gray-600">{bug.description}</p>
-                        {bug.steps_to_reproduce && <p className="text-xs text-gray-500 mt-1"><strong>Steps:</strong> {bug.steps_to_reproduce}</p>}
+                        <p className="text-sm text-gray-600">
+                          {bug.description}
+                        </p>
+                        {bug.steps_to_reproduce && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            <strong>Steps:</strong> {bug.steps_to_reproduce}
+                          </p>
+                        )}
                       </div>
-                      {isEditable && <button type="button" onClick={() => removeBug(i)} className="text-red-400 hover:text-red-600 text-sm ml-3 shrink-0">Remove</button>}
+                      {isEditable && (
+                        <button
+                          type="button"
+                          onClick={() => removeBug(i)}
+                          className="text-red-400 hover:text-red-600 text-sm ml-3 shrink-0"
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
                     {bug.screenshot_url && (
-                      <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
-                        <img src={bug.screenshot_url} alt="Bug screenshot" className="h-24 rounded border border-gray-200 object-cover hover:opacity-80" />
+                      <a
+                        href={bug.screenshot_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block mt-2"
+                      >
+                        <img
+                          src={bug.screenshot_url}
+                          alt="Bug screenshot"
+                          className="h-24 rounded border border-gray-200 object-cover hover:opacity-80"
+                        />
                       </a>
                     )}
                   </div>
@@ -1798,19 +3011,53 @@ function TesterSubmission({ submission, onUpdate, setError }) {
           {/* General Screenshots */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700">Screenshots ({form.screenshots.length})</label>
-              {isEditable && <button type="button" onClick={() => setShowGeneralAnnotator(true)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">+ Add Screenshot</button>}
+              <label className="block text-sm font-medium text-gray-700">
+                Screenshots ({form.screenshots.length})
+              </label>
+              {isEditable && (
+                <button
+                  type="button"
+                  onClick={() => setShowGeneralAnnotator(true)}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  + Add Screenshot
+                </button>
+              )}
             </div>
-            <ScreenshotAnnotator isOpen={showGeneralAnnotator} onClose={() => setShowGeneralAnnotator(false)} onComplete={(url) => setForm((f) => ({ ...f, screenshots: [...f.screenshots, url] }))} submissionId={submission.id} />
+            <ScreenshotAnnotator
+              isOpen={showGeneralAnnotator}
+              onClose={() => setShowGeneralAnnotator(false)}
+              onComplete={(url) =>
+                setForm((f) => ({ ...f, screenshots: [...f.screenshots, url] }))
+              }
+              submissionId={submission.id}
+            />
             {form.screenshots.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {form.screenshots.map((url, i) => (
                   <div key={i} className="relative group">
                     <a href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt={`Screenshot ${i + 1}`} className="h-24 rounded border border-gray-200 object-cover hover:opacity-80" />
+                      <img
+                        src={url}
+                        alt={`Screenshot ${i + 1}`}
+                        className="h-24 rounded border border-gray-200 object-cover hover:opacity-80"
+                      />
                     </a>
                     {isEditable && (
-                      <button type="button" onClick={() => setForm((f) => ({ ...f, screenshots: f.screenshots.filter((_, j) => j !== i) }))} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            screenshots: f.screenshots.filter(
+                              (_, j) => j !== i,
+                            ),
+                          }))
+                        }
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        &times;
+                      </button>
                     )}
                   </div>
                 ))}
@@ -1821,23 +3068,45 @@ function TesterSubmission({ submission, onUpdate, setError }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Suggestions</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Suggestions
+            </label>
             {isEditable ? (
-              <textarea rows={3} placeholder="Any suggestions for improvement..." className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" value={form.suggestions} onChange={(e) => setForm({ ...form, suggestions: e.target.value })} />
+              <textarea
+                rows={3}
+                placeholder="Any suggestions for improvement..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                value={form.suggestions}
+                onChange={(e) =>
+                  setForm({ ...form, suggestions: e.target.value })
+                }
+              />
             ) : (
-              <p className="text-gray-700 whitespace-pre-wrap">{form.suggestions || 'None'}</p>
+              <p className="text-gray-700 whitespace-pre-wrap">
+                {form.suggestions || "None"}
+              </p>
             )}
           </div>
 
           {videoUrl && !isEditable && (
-            <VideoTagPanel submission={submission} onUpdate={onUpdate} setError={setError} onSeek={handleTagSeek} />
+            <VideoTagPanel
+              submission={submission}
+              onUpdate={onUpdate}
+              setError={setError}
+              onSeek={handleTagSeek}
+            />
           )}
 
           {/* End session button */}
           {isEditable && sessionStarted && !sessionEnded && (
             <div className="pt-2">
-              <button type="button" onClick={handleEndSession} disabled={uploadingRrweb} className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium disabled:opacity-50">
-                {uploadingRrweb ? 'Uploading session...' : 'End Session'}
+              <button
+                type="button"
+                onClick={handleEndSession}
+                disabled={uploadingRrweb}
+                className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium disabled:opacity-50"
+              >
+                {uploadingRrweb ? "Uploading session..." : "End Session"}
               </button>
             </div>
           )}
@@ -1845,79 +3114,147 @@ function TesterSubmission({ submission, onUpdate, setError }) {
           {/* Actions — only after session ended */}
           {isEditable && sessionEnded && (
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={handleSave} disabled={saving} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50">{saving ? 'Saving...' : 'Save Draft'}</button>
-              <button type="button" onClick={handleSubmit} disabled={saving} className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{saving ? 'Submitting...' : 'Submit Feedback'}</button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save Draft"}
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+              >
+                {saving ? "Submitting..." : "Submit Feedback"}
+              </button>
             </div>
           )}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ============== Video Tag Panel (shared) ==============
 
 function VideoTagPanel({ submission, setError, onSeek }) {
-  const [tags, setTags] = useState(submission.video_tags || [])
-  const [adding, setAdding] = useState(false)
-  const [tagForm, setTagForm] = useState({ start: '', end: '', tag_type: 'bug', note: '' })
-  const [saving, setSaving] = useState(false)
+  const [tags, setTags] = useState(submission.video_tags || []);
+  const [adding, setAdding] = useState(false);
+  const [tagForm, setTagForm] = useState({
+    start: "",
+    end: "",
+    tag_type: "bug",
+    note: "",
+  });
+  const [saving, setSaving] = useState(false);
 
   const handleAddTag = async () => {
-    const startSec = parseTimeToSeconds(tagForm.start)
-    const endSec = parseTimeToSeconds(tagForm.end)
-    if (isNaN(startSec) || isNaN(endSec)) { setError('Enter times as M:SS (e.g. 1:30)'); return }
-    if (endSec <= startSec) { setError('End time must be after start time'); return }
-
-    const newTag = { start_seconds: startSec, end_seconds: endSec, tag_type: tagForm.tag_type, note: tagForm.note }
-    const updatedTags = [...tags, newTag]
-
-    setSaving(true)
-    try {
-      await axios.put(`/api/submissions/${submission.id}/video-tags`, { video_tags: updatedTags })
-      setTags(updatedTags)
-      setTagForm({ start: '', end: '', tag_type: 'bug', note: '' })
-      setAdding(false)
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save tag')
-    } finally {
-      setSaving(false)
+    const startSec = parseTimeToSeconds(tagForm.start);
+    const endSec = parseTimeToSeconds(tagForm.end);
+    if (isNaN(startSec) || isNaN(endSec)) {
+      setError("Enter times as M:SS (e.g. 1:30)");
+      return;
     }
-  }
+    if (endSec <= startSec) {
+      setError("End time must be after start time");
+      return;
+    }
+
+    const newTag = {
+      start_seconds: startSec,
+      end_seconds: endSec,
+      tag_type: tagForm.tag_type,
+      note: tagForm.note,
+    };
+    const updatedTags = [...tags, newTag];
+
+    setSaving(true);
+    try {
+      await axios.put(`/api/submissions/${submission.id}/video-tags`, {
+        video_tags: updatedTags,
+      });
+      setTags(updatedTags);
+      setTagForm({ start: "", end: "", tag_type: "bug", note: "" });
+      setAdding(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to save tag");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleRemoveTag = async (index) => {
-    const updatedTags = tags.filter((_, i) => i !== index)
-    setSaving(true)
+    const updatedTags = tags.filter((_, i) => i !== index);
+    setSaving(true);
     try {
-      await axios.put(`/api/submissions/${submission.id}/video-tags`, { video_tags: updatedTags })
-      setTags(updatedTags)
+      await axios.put(`/api/submissions/${submission.id}/video-tags`, {
+        video_tags: updatedTags,
+      });
+      setTags(updatedTags);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to remove tag')
+      setError(err.response?.data?.detail || "Failed to remove tag");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
-        <label className="block text-sm font-medium text-gray-700">Video Tags ({tags.length})</label>
-        <button type="button" onClick={() => setAdding(!adding)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">{adding ? 'Cancel' : '+ Add Tag'}</button>
+        <label className="block text-sm font-medium text-gray-700">
+          Video Tags ({tags.length})
+        </label>
+        <button
+          type="button"
+          onClick={() => setAdding(!adding)}
+          className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+        >
+          {adding ? "Cancel" : "+ Add Tag"}
+        </button>
       </div>
       {adding && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-3 space-y-3">
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Start (M:SS)</label>
-              <input type="text" placeholder="0:00" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={tagForm.start} onChange={(e) => setTagForm({ ...tagForm, start: e.target.value })} />
+              <label className="block text-xs text-gray-500 mb-1">
+                Start (M:SS)
+              </label>
+              <input
+                type="text"
+                placeholder="0:00"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                value={tagForm.start}
+                onChange={(e) =>
+                  setTagForm({ ...tagForm, start: e.target.value })
+                }
+              />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">End (M:SS)</label>
-              <input type="text" placeholder="0:30" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={tagForm.end} onChange={(e) => setTagForm({ ...tagForm, end: e.target.value })} />
+              <label className="block text-xs text-gray-500 mb-1">
+                End (M:SS)
+              </label>
+              <input
+                type="text"
+                placeholder="0:30"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                value={tagForm.end}
+                onChange={(e) =>
+                  setTagForm({ ...tagForm, end: e.target.value })
+                }
+              />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Type</label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={tagForm.tag_type} onChange={(e) => setTagForm({ ...tagForm, tag_type: e.target.value })}>
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                value={tagForm.tag_type}
+                onChange={(e) =>
+                  setTagForm({ ...tagForm, tag_type: e.target.value })
+                }
+              >
                 <option value="bug">Bug</option>
                 <option value="ux-issue">UX Issue</option>
                 <option value="training-clip">Training Clip</option>
@@ -1925,8 +3262,21 @@ function VideoTagPanel({ submission, setError, onSeek }) {
               </select>
             </div>
           </div>
-          <input type="text" placeholder="Note (optional)" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500" value={tagForm.note} onChange={(e) => setTagForm({ ...tagForm, note: e.target.value })} />
-          <button type="button" onClick={handleAddTag} disabled={saving} className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50">{saving ? 'Saving...' : 'Add Tag'}</button>
+          <input
+            type="text"
+            placeholder="Note (optional)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+            value={tagForm.note}
+            onChange={(e) => setTagForm({ ...tagForm, note: e.target.value })}
+          />
+          <button
+            type="button"
+            onClick={handleAddTag}
+            disabled={saving}
+            className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Add Tag"}
+          </button>
         </div>
       )}
       {tags.length === 0 ? (
@@ -1934,15 +3284,35 @@ function VideoTagPanel({ submission, setError, onSeek }) {
       ) : (
         <div className="flex flex-wrap gap-2">
           {tags.map((tag, i) => (
-            <button key={i} type="button" onClick={() => onSeek(tag.start_seconds)} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${TAG_COLORS[tag.tag_type] || 'bg-gray-100 text-gray-600 border-gray-200'}`} title={tag.note || tag.tag_type}>
-              <span>{formatTime(tag.start_seconds)}-{formatTime(tag.end_seconds)}</span>
-              <span className="opacity-70">{tag.tag_type.replace('-', ' ')}</span>
-              {tag.note && <span className="max-w-[120px] truncate">{tag.note}</span>}
-              <span onClick={(e) => { e.stopPropagation(); handleRemoveTag(i) }} className="ml-1 opacity-50 hover:opacity-100">&times;</span>
+            <button
+              key={i}
+              type="button"
+              onClick={() => onSeek(tag.start_seconds)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border cursor-pointer hover:opacity-80 transition-opacity ${TAG_COLORS[tag.tag_type] || "bg-gray-100 text-gray-600 border-gray-200"}`}
+              title={tag.note || tag.tag_type}
+            >
+              <span>
+                {formatTime(tag.start_seconds)}-{formatTime(tag.end_seconds)}
+              </span>
+              <span className="opacity-70">
+                {tag.tag_type.replace("-", " ")}
+              </span>
+              {tag.note && (
+                <span className="max-w-[120px] truncate">{tag.note}</span>
+              )}
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveTag(i);
+                }}
+                className="ml-1 opacity-50 hover:opacity-100"
+              >
+                &times;
+              </span>
             </button>
           ))}
         </div>
       )}
     </div>
-  )
+  );
 }

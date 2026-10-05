@@ -40,17 +40,19 @@
  * This file is identical across the fleet. Everything per-site lives in
  * site.config.json under "routeManifest".
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const webRoot = path.resolve(here, '..');
-const dist = path.join(webRoot, process.env.BUILD_DIR || 'dist');
+const webRoot = path.resolve(here, "..");
+const dist = path.join(webRoot, process.env.BUILD_DIR || "dist");
 
 let siteConfig = {};
 try {
-  siteConfig = JSON.parse(readFileSync(path.join(webRoot, 'site.config.json'), 'utf8'));
+  siteConfig = JSON.parse(
+    readFileSync(path.join(webRoot, "site.config.json"), "utf8"),
+  );
 } catch {
   // No config is not an error: the defaults below are the old behaviour.
 }
@@ -70,12 +72,17 @@ const routeCfg = siteConfig.routeManifest || {};
  */
 if (routeCfg.singlePage) {
   if (!existsSync(dist)) mkdirSync(dist, { recursive: true });
-  writeFileSync(path.join(dist, 'routes.json'), JSON.stringify(['/'], null, 2) + '\n');
-  console.log('  generate-routes: singlePage — wrote ["/"]; every other path 404s');
+  writeFileSync(
+    path.join(dist, "routes.json"),
+    JSON.stringify(["/"], null, 2) + "\n",
+  );
+  console.log(
+    '  generate-routes: singlePage — wrote ["/"]; every other path 404s',
+  );
   process.exit(0);
 }
 
-const CANDIDATES = ['src/App.tsx', 'src/App.tsx', 'src/App.js'];
+const CANDIDATES = ["src/App.tsx", "src/App.tsx", "src/App.js"];
 
 /**
  * More than one file can define routes, and missing one 404s real pages.
@@ -86,7 +93,8 @@ const CANDIDATES = ['src/App.tsx', 'src/App.tsx', 'src/App.js'];
  * server-rendered page answer 404. `appFiles` takes the union; `appFile` stays
  * for the single-file case.
  */
-const configured = routeCfg.appFiles || (routeCfg.appFile ? [routeCfg.appFile] : null);
+const configured =
+  routeCfg.appFiles || (routeCfg.appFile ? [routeCfg.appFile] : null);
 const appFiles = (
   configured
     ? configured.map((c) => path.join(webRoot, c))
@@ -95,22 +103,22 @@ const appFiles = (
 
 if (appFiles.length === 0) {
   console.error(
-    `  generate-routes: no router file (tried ${
-      (configured || CANDIDATES).join(', ')
-    }); nothing written`,
+    `  generate-routes: no router file (tried ${(configured || CANDIDATES).join(
+      ", ",
+    )}); nothing written`,
   );
   process.exit(0);
 }
 
 const appFile = appFiles[0];
-const sources = appFiles.map((f) => readFileSync(f, 'utf8'));
+const sources = appFiles.map((f) => readFileSync(f, "utf8"));
 
 /** Join a parent route prefix with a child's path the way React Router does. */
 function joinRoute(parent, child) {
-  if (child.startsWith('/')) return child; // absolute child ignores the parent
-  const base = parent === '/' ? '' : parent;
-  const tail = child.replace(/^\/+/, '');
-  return tail ? `${base}/${tail}` : base || '/';
+  if (child.startsWith("/")) return child; // absolute child ignores the parent
+  const base = parent === "/" ? "" : parent;
+  const tail = child.replace(/^\/+/, "");
+  return tail ? `${base}/${tail}` : base || "/";
 }
 
 /**
@@ -130,8 +138,8 @@ function scanRouteTags(text) {
   const re = /<(\/?)Route\b/g;
   let m;
   while ((m = re.exec(text)) !== null) {
-    if (m[1] === '/') {
-      const gt = text.indexOf('>', m.index);
+    if (m[1] === "/") {
+      const gt = text.indexOf(">", m.index);
       out.push({ closing: true });
       re.lastIndex = gt === -1 ? m.index + 6 : gt + 1;
       continue;
@@ -142,19 +150,19 @@ function scanRouteTags(text) {
     for (; i < text.length; i += 1) {
       const c = text[i];
       if (quote) {
-        if (c === '\\') i += 1;
+        if (c === "\\") i += 1;
         else if (c === quote) quote = null;
         continue;
       }
-      if (c === '"' || c === "'" || c === '`') quote = c;
-      else if (c === '{') depth += 1;
-      else if (c === '}') depth -= 1;
-      else if (c === '>' && depth === 0) break;
+      if (c === '"' || c === "'" || c === "`") quote = c;
+      else if (c === "{") depth += 1;
+      else if (c === "}") depth -= 1;
+      else if (c === ">" && depth === 0) break;
     }
     const raw = text.slice(m.index + m[0].length, i);
     out.push({
       closing: false,
-      selfClosing: raw.trimEnd().endsWith('/'),
+      selfClosing: raw.trimEnd().endsWith("/"),
       attrs: raw,
     });
     re.lastIndex = i + 1;
@@ -170,7 +178,7 @@ function scanRouteTags(text) {
  * What it must get right is the PAIRING of open and close tags, so that a child
  * is attributed to the correct parent.
  */
-function extractRoutes(text, basePath = '', routes = []) {
+function extractRoutes(text, basePath = "", routes = []) {
   const stack = [];
   for (const m of scanRouteTags(text)) {
     if (m.closing) {
@@ -191,14 +199,14 @@ function extractRoutes(text, basePath = '', routes = []) {
     // Where this element's OWN children are based. For a catch-all the route is
     // not a page, but anything rendered inside it still hangs off its prefix:
     // path="/admin/*" bases its children at /admin.
-    let childBase = parent || '/';
+    let childBase = parent || "/";
 
     if (pm) {
       const p = pm[1];
-      const isCatchAll = p === '*' || p.endsWith('/*');
+      const isCatchAll = p === "*" || p.endsWith("/*");
       if (isCatchAll) {
-        const prefix = p.replace(/\/?\*$/, '');
-        childBase = prefix ? joinRoute(parent || '/', prefix) : parent || '/';
+        const prefix = p.replace(/\/?\*$/, "");
+        childBase = prefix ? joinRoute(parent || "/", prefix) : parent || "/";
         // A PREFIXED catch-all (path="/admin/*") is kept as a pattern as well as
         // recursed into. It usually hands the subtree to a nested router that
         // often lives in another file this scan never opens, so dropping it in
@@ -208,13 +216,13 @@ function extractRoutes(text, basePath = '', routes = []) {
         // A ROOT catch-all (path="/*") is different and must NOT be kept:
         // server.mjs compiles it to a pattern matching every URL, which would
         // mark the whole site known and restore the soft 404 wholesale.
-        if (prefix) routes.push(joinRoute(parent || '/', p));
+        if (prefix) routes.push(joinRoute(parent || "/", p));
       } else {
-        full = joinRoute(parent || '/', p);
+        full = joinRoute(parent || "/", p);
         childBase = full;
       }
     } else if (isIndex) {
-      full = parent || '/'; // <Route index> IS the parent's own path
+      full = parent || "/"; // <Route index> IS the parent's own path
     }
 
     if (full) routes.push(full);
@@ -223,7 +231,7 @@ function extractRoutes(text, basePath = '', routes = []) {
     // so the scan above steps over it. theauthentech puts all 22 of its real
     // pages there, under a path="/*" shell route; without this recursion the
     // manifest came back with 2 entries and would have 404ed the entire site.
-    if (attrs.includes('<Route')) extractRoutes(attrs, childBase, routes);
+    if (attrs.includes("<Route")) extractRoutes(attrs, childBase, routes);
 
     if (!selfClosing) stack.push(childBase);
   }
@@ -252,39 +260,49 @@ function extractTableRoutes(text) {
   const re = /\bpath\s*:\s*(['"`])([^'"`]*)\1/g;
   let m;
   while ((m = re.exec(text)) !== null) {
-    if (m[2].startsWith('/')) out.push(m[2]);
+    if (m[2].startsWith("/")) out.push(m[2]);
   }
   return out;
 }
 
 // Per file, never concatenated: extractRoutes pairs opening and closing tags with
 // a stack, and joining sources would let that stack run across a file boundary.
-const collected = sources.flatMap((s) => [...extractRoutes(s), ...extractTableRoutes(s)]);
-const routes = [...new Set(collected)].filter((p) => p.startsWith('/')).sort();
+const collected = sources.flatMap((s) => [
+  ...extractRoutes(s),
+  ...extractTableRoutes(s),
+]);
+const routes = [...new Set(collected)].filter((p) => p.startsWith("/")).sort();
 
-const MIN_ROUTES = Number.isFinite(routeCfg.minRoutes) ? routeCfg.minRoutes : 20;
+const MIN_ROUTES = Number.isFinite(routeCfg.minRoutes)
+  ? routeCfg.minRoutes
+  : 20;
 if (routes.length < MIN_ROUTES) {
   console.error(
     `\n  FAILED: generate-routes extracted only ${routes.length} route(s) from ` +
       `${path.relative(webRoot, appFile)} (expected at least ${MIN_ROUTES}).\n` +
       `  The extraction has probably broken. Not writing ${
-        process.env.BUILD_DIR || 'dist'
+        process.env.BUILD_DIR || "dist"
       }/routes.json — a short manifest would 404 real pages.\n`,
   );
   process.exit(1);
 }
 
-const REQUIRED = Array.isArray(routeCfg.required) ? routeCfg.required : ['/'];
+const REQUIRED = Array.isArray(routeCfg.required) ? routeCfg.required : ["/"];
 const absent = REQUIRED.filter((r) => !routes.includes(r));
 if (absent.length) {
-  console.error(`\n  FAILED: generate-routes lost required route(s): ${absent.join(', ')}\n`);
+  console.error(
+    `\n  FAILED: generate-routes lost required route(s): ${absent.join(", ")}\n`,
+  );
   process.exit(1);
 }
 
 if (!existsSync(dist)) mkdirSync(dist, { recursive: true });
-writeFileSync(path.join(dist, 'routes.json'), JSON.stringify(routes, null, 2) + '\n');
+writeFileSync(
+  path.join(dist, "routes.json"),
+  JSON.stringify(routes, null, 2) + "\n",
+);
 console.log(
   `  generate-routes: ${routes.length} route pattern(s) from ` +
     `${path.relative(webRoot, appFile)} -> ` +
-    `${path.relative(webRoot, path.join(dist, 'routes.json'))}`,
+    `${path.relative(webRoot, path.join(dist, "routes.json"))}`,
 );

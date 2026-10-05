@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from "vitest";
 
 /**
  * Every module in this app must be importable.
@@ -17,7 +17,9 @@ import { describe, it, expect } from 'vitest'
  * it threw, and only a stale deployed bundle hid it. On another it found four
  * files that could not be imported at all.
  */
-const modules = import.meta.glob('./{pages,components,hooks}/**/*.{js,jsx,ts,tsx}')
+const modules = import.meta.glob(
+  "./{pages,components,hooks}/**/*.{js,jsx,ts,tsx}",
+);
 
 /**
  * Modules that cannot be IMPORTED in this environment, with the reason.
@@ -32,28 +34,30 @@ const modules = import.meta.glob('./{pages,components,hooks}/**/*.{js,jsx,ts,tsx
  * asserted below to still match something, so it cannot rot into a lie.
  */
 const REQUIRES_REAL_CANVAS = [
-  './components/ScreenshotAnnotator.tsx',
-  './pages/JobDetail.tsx',
-]
+  "./components/ScreenshotAnnotator.tsx",
+  "./pages/JobDetail.tsx",
+];
 
-const all = Object.entries(modules).filter(([p]) => !p.includes('.test.') && !p.includes('.spec.'))
-const entries = all.filter(([p]) => !REQUIRES_REAL_CANVAS.includes(p))
+const all = Object.entries(modules).filter(
+  ([p]) => !p.includes(".test.") && !p.includes(".spec."),
+);
+const entries = all.filter(([p]) => !REQUIRES_REAL_CANVAS.includes(p));
 
-describe('the frontend contract', () => {
-  it('found modules to check', () => {
-    expect(entries.length).toBeGreaterThan(3)
-  })
+describe("the frontend contract", () => {
+  it("found modules to check", () => {
+    expect(entries.length).toBeGreaterThan(3);
+  });
 
-  it('every exclusion still refers to a real module', () => {
+  it("every exclusion still refers to a real module", () => {
     // If a file is renamed or deleted, the exclusion above becomes a silent
     // hole that skips nothing and hides the next module of the same name.
-    const present = all.map(([p]) => p)
+    const present = all.map(([p]) => p);
     for (const skipped of REQUIRES_REAL_CANVAS) {
-      expect(present).toContain(skipped)
+      expect(present).toContain(skipped);
     }
-  })
+  });
 
-  it.each(entries)('%s imports without throwing', async (_path, load) => {
-    await expect(load()).resolves.toBeDefined()
-  })
-})
+  it.each(entries)("%s imports without throwing", async (_path, load) => {
+    await expect(load()).resolves.toBeDefined();
+  });
+});

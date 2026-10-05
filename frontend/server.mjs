@@ -20,13 +20,15 @@
  * with text/html, so a stale chunk surfaced as a confusing parse error rather
  * than a 404.
  */
-import http from 'node:http';
-import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import http from "node:http";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const config = JSON.parse(readFileSync(path.join(here, 'site.config.json'), 'utf8'));
+const config = JSON.parse(
+  readFileSync(path.join(here, "site.config.json"), "utf8"),
+);
 
 // BUILD_DIR exists for one caller: scripts/prerender.mjs spawns this server to
 // crawl a build that is not live yet. Without it the prerenderer served the dist
@@ -35,37 +37,40 @@ const config = JSON.parse(readFileSync(path.join(here, 'site.config.json'), 'utf
 // not exist in its own release. The site stayed up only because Cloudflare still
 // had the old immutable assets cached; at origin they were 404.
 // Unset, as it is under pm2, this is 'dist' exactly as before.
-const distDir = path.join(here, process.env.BUILD_DIR || 'dist');
+const distDir = path.join(here, process.env.BUILD_DIR || "dist");
 const port = Number(process.env.PORT || config.port);
-const host = process.env.HOST || '127.0.0.1';
+const host = process.env.HOST || "127.0.0.1";
 const apiTarget = new URL(process.env.API_TARGET || config.apiTarget);
 const headers = config.headers || {};
 
-const MIME = new Map(Object.entries({
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.avif': 'image/avif',
-  '.ico': 'image/x-icon',
-  '.txt': 'text/plain; charset=utf-8',
-  '.xml': 'application/xml; charset=utf-8',
-  '.webmanifest': 'application/manifest+json; charset=utf-8',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-  '.map': 'application/json; charset=utf-8',
-  '.pdf': 'application/pdf',
-  '.zip': 'application/zip',
-}));
+const MIME = new Map(
+  Object.entries({
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
+    ".ico": "image/x-icon",
+    ".txt": "text/plain; charset=utf-8",
+    ".xml": "application/xml; charset=utf-8",
+    ".webmanifest": "application/manifest+json; charset=utf-8",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".map": "application/json; charset=utf-8",
+    ".pdf": "application/pdf",
+    ".zip": "application/zip",
+  }),
+);
 
-const contentType = (f) => MIME.get(path.extname(f).toLowerCase()) || 'application/octet-stream';
+const contentType = (f) =>
+  MIME.get(path.extname(f).toLowerCase()) || "application/octet-stream";
 
 /**
  * Resolve a request path inside dist, or refuse.
@@ -76,7 +81,9 @@ const contentType = (f) => MIME.get(path.extname(f).toLowerCase()) || 'applicati
  */
 function safeJoin(base, target) {
   const resolved = path.resolve(base, target);
-  return resolved === base || resolved.startsWith(base + path.sep) ? resolved : null;
+  return resolved === base || resolved.startsWith(base + path.sep)
+    ? resolved
+    : null;
 }
 
 /**
@@ -95,18 +102,18 @@ function safeJoin(base, target) {
  * serving rather than start 404ing its own pages.
  */
 function compileRouteMatchers() {
-  const file = path.join(distDir, 'routes.json');
+  const file = path.join(distDir, "routes.json");
   if (!existsSync(file)) return null;
   try {
-    const patterns = JSON.parse(readFileSync(file, 'utf8'));
+    const patterns = JSON.parse(readFileSync(file, "utf8"));
     if (!Array.isArray(patterns) || patterns.length === 0) return null;
     return patterns.map((pattern) => {
       const body = pattern
         // Escape regex metacharacters. ':' and '*' are left alone; they are
         // router syntax and are translated below.
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\/\*$/, '(?:/.*)?')          // /mobile/*  -> /mobile and below
-        .replace(/:[A-Za-z0-9_]+/g, '[^/]+');   // /blog/:slug -> one segment
+        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+        .replace(/\/\*$/, "(?:/.*)?") // /mobile/*  -> /mobile and below
+        .replace(/:[A-Za-z0-9_]+/g, "[^/]+"); // /blog/:slug -> one segment
       return new RegExp(`^${body}/?$`);
     });
   } catch {
@@ -140,7 +147,7 @@ function routeMatchers() {
 
   let mtimeMs = -1;
   try {
-    mtimeMs = statSync(path.join(distDir, 'routes.json')).mtimeMs;
+    mtimeMs = statSync(path.join(distDir, "routes.json")).mtimeMs;
   } catch {
     mtimeMs = -1; // no manifest: every path is treated as known, as before
   }
@@ -150,7 +157,7 @@ function routeMatchers() {
     console.log(
       routeCache.matchers
         ? `  routes: ${routeCache.matchers.length} pattern(s) loaded; unknown paths will 404`
-        : '  routes: no routes.json; every path falls back to the shell at 200',
+        : "  routes: no routes.json; every path falls back to the shell at 200",
     );
   }
   return routeCache.matchers;
@@ -174,42 +181,44 @@ routeMatchers();
  * how it hides -- every manual spot-check looks fine.
  */
 function cacheControlFor(filePath) {
-  if (filePath.endsWith('.html')) return 'no-cache, must-revalidate';
-  if (filePath.endsWith('sw.js')) return 'no-cache, must-revalidate';
+  if (filePath.endsWith(".html")) return "no-cache, must-revalidate";
+  if (filePath.endsWith("sw.js")) return "no-cache, must-revalidate";
   // A hash in the filename is what makes "forever" safe.
   const name = path.basename(filePath);
-  const hashed = /\.[0-9a-zA-Z_-]{8,}\.(js|mjs|css|woff2?|png|jpg|jpeg|svg|webp|avif|gif|ico)$/.test(name)
-    || /[\\/]assets[\\/]/.test(filePath);
-  if (hashed) return 'public, max-age=31536000, immutable';
+  const hashed =
+    /\.[0-9a-zA-Z_-]{8,}\.(js|mjs|css|woff2?|png|jpg|jpeg|svg|webp|avif|gif|ico)$/.test(
+      name,
+    ) || /[\\/]assets[\\/]/.test(filePath);
+  if (hashed) return "public, max-age=31536000, immutable";
   // Named files that change in place: short TTL so an update is visible without
   // a cache purge, but still cheap to serve.
-  return 'public, max-age=300, must-revalidate';
+  return "public, max-age=300, must-revalidate";
 }
 
 function serveFile(res, filePath, status = 200) {
   res.writeHead(status, {
-    'Content-Type': contentType(filePath),
+    "Content-Type": contentType(filePath),
     // A 404 is never cached. With no Cache-Control the edge applied its own default
     // (4 hours), so a missing hashed bundle during one bad deploy stayed a 404 at
     // Cloudflare for hours after the origin was fixed -- WeSpinta, 2026-10-03.
-    'Cache-Control': status === 404 ? 'no-store' : cacheControlFor(filePath),
+    "Cache-Control": status === 404 ? "no-store" : cacheControlFor(filePath),
   });
 
   // A read that fails after the headers are out — the file replaced mid-deploy,
   // a disk error — emits 'error' on the stream. Unhandled, that is an uncaught
   // exception and the process dies, taking every in-flight request with it.
   const stream = createReadStream(filePath);
-  stream.on('error', (err) => {
+  stream.on("error", (err) => {
     console.error(`read failed for ${filePath}: ${err.message}`);
     res.destroy();
   });
   // If the client goes away mid-download, stop reading.
-  res.on('close', () => stream.destroy());
+  res.on("close", () => stream.destroy());
   stream.pipe(res);
 }
 
 function proxyApi(req, res) {
-  const target = new URL(req.url || '/', apiTarget);
+  const target = new URL(req.url || "/", apiTarget);
   const upstream = http.request(
     target,
     {
@@ -220,27 +229,27 @@ function proxyApi(req, res) {
         // The response body is piped through untouched while content-encoding is
         // stripped below, so a compressed upstream body would arrive labelled as
         // plain JSON and fail to parse.
-        'accept-encoding': 'identity',
+        "accept-encoding": "identity",
       },
     },
     (up) => {
       const h = { ...up.headers };
-      delete h['content-encoding'];
-      delete h['transfer-encoding'];
+      delete h["content-encoding"];
+      delete h["transfer-encoding"];
       res.writeHead(up.statusCode || 502, h);
       up.pipe(res);
     },
   );
-  upstream.on('error', (err) => {
-    res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ detail: 'Bad gateway', error: err.message }));
+  upstream.on("error", (err) => {
+    res.writeHead(502, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ detail: "Bad gateway", error: err.message }));
   });
   req.pipe(upstream);
 }
 
 function badRequest(res) {
-  res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Bad request');
+  res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end("Bad request");
 }
 
 const server = http.createServer((req, res) => {
@@ -251,28 +260,34 @@ const server = http.createServer((req, res) => {
   let requestPath;
   let p;
   try {
-    p = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`).pathname;
+    p = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`)
+      .pathname;
     requestPath = decodeURIComponent(p);
   } catch {
     return badRequest(res);
   }
 
-  if (p === '/health' || p === '/api' || p.startsWith('/api/') || p.startsWith('/uploads/')) {
+  if (
+    p === "/health" ||
+    p === "/api" ||
+    p.startsWith("/api/") ||
+    p.startsWith("/uploads/")
+  ) {
     return proxyApi(req, res);
   }
 
   for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
 
   // A null byte truncates a path in some syscalls; refuse rather than reason about it.
-  if (requestPath.includes('\0')) return badRequest(res);
+  if (requestPath.includes("\0")) return badRequest(res);
 
-  const direct = safeJoin(distDir, requestPath.replace(/^\/+/, ''));
+  const direct = safeJoin(distDir, requestPath.replace(/^\/+/, ""));
 
   if (direct && existsSync(direct)) {
     const st = statSync(direct);
     if (st.isFile()) return serveFile(res, direct);
     if (st.isDirectory()) {
-      const idx = path.join(direct, 'index.html');
+      const idx = path.join(direct, "index.html");
       if (existsSync(idx)) return serveFile(res, idx);
     }
   }
@@ -280,8 +295,11 @@ const server = http.createServer((req, res) => {
   // A missing asset is a 404, not the app shell. Returning HTML for a stale
   // /assets/*.js is what turned a cache miss into an unreadable parse error.
   if (path.extname(requestPath)) {
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-    return res.end('Not found');
+    res.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    return res.end("Not found");
   }
 
   // An unknown client-side route still gets the shell -- NotFound.tsx renders
@@ -289,13 +307,13 @@ const server = http.createServer((req, res) => {
   // crawler is told the truth. Known routes are unaffected.
   const matchers = routeMatchers();
   const known = !matchers || matchers.some((re) => re.test(requestPath));
-  return serveFile(res, path.join(distDir, 'index.html'), known ? 200 : 404);
+  return serveFile(res, path.join(distDir, "index.html"), known ? 200 : 404);
 });
 
 // A handler that throws before it has written anything leaves the socket hanging.
 // This is the net under the specific guards above, not a substitute for them.
-server.on('clientError', (err, socket) => {
-  if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+server.on("clientError", (err, socket) => {
+  if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
 });
 
 server.listen(port, host, () => {

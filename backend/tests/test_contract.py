@@ -4,6 +4,7 @@ Not a stub suite. Every test here corresponds to a defect that shipped somewhere
 sixty programs: an application whose routes 500 on a name nobody bound, a route that
 answers 200 to a caller carrying no token, and a suite that quietly ran against live data.
 """
+
 import os
 import re
 import subprocess
@@ -52,14 +53,16 @@ def _databases_the_application_opened():
         for attr in dir(mod):
             try:
                 obj = getattr(mod, attr)
-            except Exception:                                        # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 continue
             cls = type(obj)
-            if cls.__module__.split(".")[0] in ("pymongo", "motor") and \
-                    cls.__name__ in ("Database", "AsyncIOMotorDatabase"):
+            if cls.__module__.split(".")[0] in (
+                "pymongo",
+                "motor",
+            ) and cls.__name__ in ("Database", "AsyncIOMotorDatabase"):
                 try:
                     found[f"{name}.{attr}"] = obj.name
-                except Exception:                                    # noqa: BLE001
+                except Exception:  # noqa: BLE001
                     pass
     return found
 
@@ -73,12 +76,16 @@ def test_the_suite_is_not_pointed_at_the_live_database(client):
     assert os.environ["DATABASE_NAME"].endswith("_test"), os.environ["DATABASE_NAME"]
     opened = _databases_the_application_opened()
     live = {k: v for k, v in opened.items() if not v.endswith("_test")}
-    assert not live, f"the application opened a database that is not a test database: {live}"
+    assert not live, (
+        f"the application opened a database that is not a test database: {live}"
+    )
 
 
 # ── the application boots ────────────────────────────────────────────────────────
 def test_the_application_imports_and_registers_its_routes():
-    assert _api_routes(), "the application registered no routes; a router failed to load"
+    assert _api_routes(), (
+        "the application registered no routes; a router failed to load"
+    )
 
 
 def _applications(application=app):
@@ -86,7 +93,11 @@ def _applications(application=app):
     out = [application]
     for route in getattr(application, "routes", []):
         sub = getattr(route, "app", None)
-        if isinstance(route, Mount) and hasattr(sub, "openapi") and sub is not application:
+        if (
+            isinstance(route, Mount)
+            and hasattr(sub, "openapi")
+            and sub is not application
+        ):
             out.extend(_applications(sub))
     return out
 
@@ -107,9 +118,11 @@ def test_the_openapi_schema_builds():
     assert paths, "no application described any path"
 
 
-HEALTH = [path for path, r in _api_routes()
-          if "GET" in r.methods
-          and re.fullmatch(r"/(api/)?(health|healthz|ping)/?", path)]
+HEALTH = [
+    path
+    for path, r in _api_routes()
+    if "GET" in r.methods and re.fullmatch(r"/(api/)?(health|healthz|ping)/?", path)
+]
 
 
 @pytest.mark.skipif(not HEALTH, reason="this program declares no health route")
@@ -125,12 +138,20 @@ def test_no_undefined_names(backend_root):
     passed, because nothing covered those five. A NameError does not fail at import; it
     fails the moment the line runs, and FastAPI serves that as a 500.
     """
-    out = subprocess.run([sys.executable, "-m", "pyflakes", "."],
-                         cwd=backend_root, capture_output=True, text=True).stdout
-    undefined = [ln for ln in out.splitlines()
-                 if "undefined name" in ln
-                 and "/venv/" not in ln and "site-packages" not in ln
-                 and "/node_modules/" not in ln]
+    out = subprocess.run(
+        [sys.executable, "-m", "pyflakes", "."],
+        cwd=backend_root,
+        capture_output=True,
+        text=True,
+    ).stdout
+    undefined = [
+        ln
+        for ln in out.splitlines()
+        if "undefined name" in ln
+        and "/venv/" not in ln
+        and "site-packages" not in ln
+        and "/node_modules/" not in ln
+    ]
     assert not undefined, "\n".join(undefined)
 
 
@@ -165,7 +186,9 @@ _ADMIN_PATH = re.compile(r"/(admin|internal|manage)(/|$)", re.I)
 #: protected routes is worse than no exemption.
 _SESSION_VERB = re.compile(
     r"(login|signin|sign-in|logout|signout|sign-out|token|refresh|register|signup"
-    r"|sign-up|forgot|forgot-password|reset|reset-password)", re.I)
+    r"|sign-up|forgot|forgot-password|reset|reset-password)",
+    re.I,
+)
 
 
 def _HANDS_OUT_A_SESSION(path: str) -> bool:
@@ -179,7 +202,7 @@ def _protected_routes():
         if "{" in path:
             continue
         names, stack = set(), list(route.dependant.dependencies)
-        while stack:                        # dependencies of dependencies count too
+        while stack:  # dependencies of dependencies count too
             d = stack.pop()
             names.add(getattr(d.call, "__name__", ""))
             stack.extend(d.dependencies)
@@ -195,7 +218,9 @@ def _protected_routes():
 PROTECTED = _protected_routes()
 
 
-@pytest.mark.skipif(not PROTECTED, reason="this program declares no authenticated routes")
+@pytest.mark.skipif(
+    not PROTECTED, reason="this program declares no authenticated routes"
+)
 @pytest.mark.parametrize("method,path", PROTECTED)
 def test_a_protected_route_refuses_an_anonymous_caller(client, method, path):
     """An anonymous caller must not SUCCEED. 401 or 403 is the right answer and 422 is an
@@ -207,4 +232,5 @@ def test_a_protected_route_refuses_an_anonymous_caller(client, method, path):
     r = client.request(method, path)
     assert not (200 <= r.status_code < 300), (
         f"{method} {path} answered {r.status_code} to a caller with no credentials: "
-        f"{r.text[:200]}")
+        f"{r.text[:200]}"
+    )

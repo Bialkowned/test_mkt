@@ -15,33 +15,36 @@
  * Never fatal: a cleanup failure must not turn a green run red.
  */
 
-import { execFile } from 'child_process';
-import { promisify } from 'util';
+import { execFile } from "child_process";
+import { promisify } from "util";
 const execFileAsync = promisify(execFile);
 
-const SWEEP = `${process.env.FLEET_ROOT ?? process.env.HOME + '/Production'}/2_commercial/1_Bialkowned/bialkowned_erp/backend/core/standards/qa_account_sweep.py`;
+const SWEEP = `${process.env.FLEET_ROOT ?? process.env.HOME + "/Production"}/2_commercial/1_Bialkowned/bialkowned_erp/backend/core/standards/qa_account_sweep.py`;
 // The sweep needs pymongo. System python does not have it; every program venv does.
 const PYTHON =
   process.env.E2E_SWEEP_PYTHON ||
-  `${process.env.FLEET_ROOT ?? process.env.HOME + '/Production'}/2_commercial/1_Bialkowned/bialkowned_erp/backend/venv/bin/python`;
+  `${process.env.FLEET_ROOT ?? process.env.HOME + "/Production"}/2_commercial/1_Bialkowned/bialkowned_erp/backend/venv/bin/python`;
 
 export default async () => {
   const runId = process.env.E2E_RUN_ID;
   if (!runId) {
-    console.log('[teardown] E2E_RUN_ID not set — skipping cleanup (global-setup assigns it)');
+    console.log(
+      "[teardown] E2E_RUN_ID not set — skipping cleanup (global-setup assigns it)",
+    );
     return;
   }
-  const program = process.env.E2E_PROGRAM || 'tester';
-  const args = [SWEEP, '--program', program, '--run', runId, '--apply'];
-  if (process.env.E2E_DB) args.push('--db', process.env.E2E_DB);
+  const program = process.env.E2E_PROGRAM || "tester";
+  const args = [SWEEP, "--program", program, "--run", runId, "--apply"];
+  if (process.env.E2E_DB) args.push("--db", process.env.E2E_DB);
   try {
     const { stdout } = await execFileAsync(PYTHON, args, { timeout: 180000 });
-    const line = stdout.trim().split('\n').filter(Boolean).pop() || 'nothing to remove';
+    const line =
+      stdout.trim().split("\n").filter(Boolean).pop() || "nothing to remove";
     console.log(`[teardown] ${line}`);
   } catch (err) {
     console.log(
-      `[teardown] cleanup failed (${err.message.split('\n')[0]}). ` +
-        `Accounts for run ${runId} remain; the periodic sweep will collect them.`
+      `[teardown] cleanup failed (${err.message.split("\n")[0]}). ` +
+        `Accounts for run ${runId} remain; the periodic sweep will collect them.`,
     );
   }
 };

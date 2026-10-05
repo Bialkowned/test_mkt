@@ -1,4 +1,14 @@
-from fastapi import FastAPI, HTTPException, Depends, status, Response, Request, Cookie, UploadFile, File
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    Depends,
+    status,
+    Response,
+    Request,
+    Cookie,
+    UploadFile,
+    File,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
@@ -31,7 +41,9 @@ logger = logging.getLogger("peertesthub")
 # results from an application that looks healthy.
 MONGO_URI = os.environ["MONGO_URI"]
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
-CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5008").split(",")]
+CORS_ORIGINS = [
+    o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5008").split(",")
+]
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "5108"))
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
@@ -42,7 +54,9 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "PeerTest Hub <noreply@yourdomain.com>")
+RESEND_FROM_EMAIL = os.getenv(
+    "RESEND_FROM_EMAIL", "PeerTest Hub <noreply@yourdomain.com>"
+)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5008")
 
 PLATFORM_FEE_RATE = 0.15
@@ -85,11 +99,16 @@ async def _fleet_security_headers(request, call_next):
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    response.headers.setdefault(
+        "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+    )
     # Swagger/ReDoc load their assets from a CDN; a strict CSP renders those pages blank.
     if not request.url.path.startswith(_FLEET_DOCS_PATHS):
-        response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+        response.headers.setdefault(
+            "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"
+        )
     return response
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -101,6 +120,7 @@ app.add_middleware(
 
 ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
 MAX_SCREENSHOT_SIZE = 10 * 1024 * 1024  # 10MB
+
 
 @app.on_event("startup")
 async def create_indexes():
@@ -139,6 +159,7 @@ async def start_payout_reconciler():
     someone who thinks to call it. This is the part that runs whether or not anybody
     remembers. It sleeps first, so importing the app costs nothing.
     """
+
     async def loop():
         while True:
             await asyncio.sleep(PAYOUT_RECONCILE_SECONDS)
@@ -155,7 +176,9 @@ async def start_payout_reconciler():
     asyncio.create_task(loop())
     await refresh_tokens_col.create_index("expires_at", expireAfterSeconds=0)
 
+
 # --- Pydantic Models ---
+
 
 class UserRegister(BaseModel):
     email: EmailStr
@@ -164,9 +187,11 @@ class UserRegister(BaseModel):
     last_name: str
     role: str = Field(..., pattern="^(builder|tester)$")
 
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
 
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=3, max_length=100)
@@ -174,11 +199,13 @@ class ProjectCreate(BaseModel):
     hosted_url: str
     category: str
 
+
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     hosted_url: Optional[str] = None
     category: Optional[str] = None
+
 
 class JobCreate(BaseModel):
     project_id: str
@@ -190,6 +217,7 @@ class JobCreate(BaseModel):
     test_url: Optional[str] = None
     test_credentials: Optional[dict] = None  # {email, password, notes}
 
+
 class SubmissionUpdate(BaseModel):
     overall_feedback: Optional[str] = None
     bug_reports: Optional[List[dict]] = None
@@ -199,14 +227,17 @@ class SubmissionUpdate(BaseModel):
     transcript: Optional[str] = None
     screenshots: Optional[List[str]] = None
 
+
 class ReviewAction(BaseModel):
     feedback: str = ""
     rating: Optional[int] = Field(None, ge=1, le=5)
+
 
 class ProfileUpdate(BaseModel):
     bio: str = Field("", max_length=500)
     specialties: List[str] = Field(default_factory=list)
     profile_visible: bool = True
+
 
 class VideoTag(BaseModel):
     start_seconds: float
@@ -214,17 +245,22 @@ class VideoTag(BaseModel):
     tag_type: str = Field(..., pattern="^(bug|ux-issue|training-clip|marketing-clip)$")
     note: str = ""
 
+
 class VideoTagsUpdate(BaseModel):
     video_tags: List[VideoTag]
+
 
 class VerifyCodeBody(BaseModel):
     code: str
 
+
 # --- V2 Structured Jobs + Bidding Models ---
+
 
 class TestPlanPage(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     url: str = ""
+
 
 class TestPlanItem(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
@@ -234,16 +270,19 @@ class TestPlanItem(BaseModel):
     estimated_minutes: int = Field(..., ge=1)
     pages: List[TestPlanPage] = []
 
+
 class RoleCredentials(BaseModel):
     email: str = ""
     password: str = ""
     notes: str = ""
+
 
 class TestPlanRole(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str = ""
     credentials: Optional[RoleCredentials] = None
     items: List[TestPlanItem] = Field(..., min_length=1)
+
 
 class JobCreateV2(BaseModel):
     project_id: str
@@ -253,13 +292,16 @@ class JobCreateV2(BaseModel):
     roles: List[TestPlanRole] = Field(..., min_length=1)
     estimated_time_minutes: int = Field(..., ge=1)
 
+
 class BidCreate(BaseModel):
     bid_price: float = Field(..., gt=0, le=10000)
     message: str = Field("", max_length=500)
     scope_role_id: Optional[str] = None
     scope_item_id: Optional[str] = None
 
+
 # --- Email Helpers ---
+
 
 def send_email(to: str, subject: str, html: str):
     """Fire-and-forget email via Resend. Failures logged but never block."""
@@ -267,17 +309,21 @@ def send_email(to: str, subject: str, html: str):
         logger.warning("RESEND_API_KEY not set, skipping email to %s", to)
         return
     try:
-        resend.Emails.send({
-            "from": RESEND_FROM_EMAIL,
-            "to": [to],
-            "subject": subject,
-            "html": html,
-        })
+        resend.Emails.send(
+            {
+                "from": RESEND_FROM_EMAIL,
+                "to": [to],
+                "subject": subject,
+                "html": html,
+            }
+        )
     except Exception as e:
         logger.error("Failed to send email to %s: %s", to, e)
 
+
 def generate_verification_code() -> str:
     return f"{random.randint(0, 999999):06d}"
+
 
 def email_verification_code_html(first_name: str, code: str) -> str:
     return f"""
@@ -292,7 +338,10 @@ def email_verification_code_html(first_name: str, code: str) -> str:
     </div>
     """
 
-def email_job_claimed_html(builder_name: str, tester_name: str, job_title: str, job_id: str) -> str:
+
+def email_job_claimed_html(
+    builder_name: str, tester_name: str, job_title: str, job_id: str
+) -> str:
     url = f"{FRONTEND_URL}/jobs/{job_id}"
     return f"""
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -303,7 +352,10 @@ def email_job_claimed_html(builder_name: str, tester_name: str, job_title: str, 
     </div>
     """
 
-def email_submission_submitted_html(builder_name: str, tester_name: str, job_title: str, job_id: str) -> str:
+
+def email_submission_submitted_html(
+    builder_name: str, tester_name: str, job_title: str, job_id: str
+) -> str:
     url = f"{FRONTEND_URL}/jobs/{job_id}"
     return f"""
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -313,6 +365,7 @@ def email_submission_submitted_html(builder_name: str, tester_name: str, job_tit
         <a href="{url}" style="display: inline-block; padding: 12px 24px; background: #4f46e5; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">Review Submission</a>
     </div>
     """
+
 
 def email_approved_html(tester_name: str, job_title: str, payout: float) -> str:
     return f"""
@@ -324,9 +377,21 @@ def email_approved_html(tester_name: str, job_title: str, payout: float) -> str:
     </div>
     """
 
-def email_new_bid_html(builder_name: str, tester_name: str, job_title: str, job_id: str, bid_price: float, is_counter: bool) -> str:
+
+def email_new_bid_html(
+    builder_name: str,
+    tester_name: str,
+    job_title: str,
+    job_id: str,
+    bid_price: float,
+    is_counter: bool,
+) -> str:
     url = f"{FRONTEND_URL}/jobs/{job_id}"
-    counter_note = f" (counter-offer — different from your proposed price)" if is_counter else " (accepted your proposed price)"
+    counter_note = (
+        f" (counter-offer — different from your proposed price)"
+        if is_counter
+        else " (accepted your proposed price)"
+    )
     return f"""
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
         <h2>New bid on your job</h2>
@@ -336,7 +401,10 @@ def email_new_bid_html(builder_name: str, tester_name: str, job_title: str, job_
     </div>
     """
 
-def email_bid_accepted_html(tester_name: str, job_title: str, job_id: str, bid_price: float) -> str:
+
+def email_bid_accepted_html(
+    tester_name: str, job_title: str, job_id: str, bid_price: float
+) -> str:
     url = f"{FRONTEND_URL}/jobs/{job_id}"
     return f"""
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -346,6 +414,7 @@ def email_bid_accepted_html(tester_name: str, job_title: str, job_id: str, bid_p
         <a href="{url}" style="display: inline-block; padding: 12px 24px; background: #4f46e5; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600;">Start Testing</a>
     </div>
     """
+
 
 def email_bid_rejected_html(tester_name: str, job_title: str) -> str:
     return f"""
@@ -357,24 +426,29 @@ def email_bid_rejected_html(tester_name: str, job_title: str) -> str:
     </div>
     """
 
+
 def email_rejected_html(tester_name: str, job_title: str, feedback: str) -> str:
     return f"""
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
         <h2>Your submission was not approved</h2>
         <p>Hi {tester_name},</p>
         <p>Unfortunately, your feedback for <strong>"{job_title}"</strong> was rejected.</p>
-        {f'<p><strong>Builder feedback:</strong> {feedback}</p>' if feedback else ''}
+        {f"<p><strong>Builder feedback:</strong> {feedback}</p>" if feedback else ""}
         <p style="color: #888; font-size: 13px;">You can still claim and submit for other jobs.</p>
     </div>
     """
 
+
 # --- Helpers ---
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
+
 def check_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
 
 def create_access_token(data: dict) -> str:
     payload = data.copy()
@@ -382,12 +456,18 @@ def create_access_token(data: dict) -> str:
     payload["type"] = "access"
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
+
 def create_refresh_token() -> str:
     return secrets.token_urlsafe(64)
 
-async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+
+async def verify_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> str:
     try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM]
+        )
         email = payload.get("sub")
         if email is None or payload.get("type") != "access":
             raise HTTPException(status_code=401, detail="Invalid token")
@@ -397,6 +477,7 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+
 def doc_to_dict(doc):
     """Convert MongoDB doc: rename _id to id, remove internal fields."""
     if doc is None:
@@ -404,6 +485,7 @@ def doc_to_dict(doc):
     doc["id"] = doc.pop("_id")
     doc.pop("password_hash", None)
     return doc
+
 
 def user_public(user: dict) -> dict:
     return {
@@ -419,11 +501,13 @@ def user_public(user: dict) -> dict:
         "specialties": user.get("specialties", []),
     }
 
+
 async def get_user_or_404(email: str) -> dict:
     user = await users_col.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
 
 def set_refresh_cookie(response: Response, token: str):
     response.set_cookie(
@@ -436,8 +520,10 @@ def set_refresh_cookie(response: Response, token: str):
         path="/api/auth",
     )
 
+
 def clear_refresh_cookie(response: Response):
     response.delete_cookie(key="refresh_token", path="/api/auth")
+
 
 async def get_or_create_stripe_customer(user: dict) -> str:
     """Get existing or create new Stripe Customer for a builder."""
@@ -448,8 +534,11 @@ async def get_or_create_stripe_customer(user: dict) -> str:
         name=f"{user['first_name']} {user['last_name']}",
         metadata={"peertesthub_email": user["email"]},
     )
-    await users_col.update_one({"email": user["email"]}, {"$set": {"stripe_customer_id": customer.id}})
+    await users_col.update_one(
+        {"email": user["email"]}, {"$set": {"stripe_customer_id": customer.id}}
+    )
     return customer.id
+
 
 # --- Money this platform owes that Stripe would not move ---
 #
@@ -469,8 +558,9 @@ REFUND_DONE = "refunded"
 REFUND_FAILED = "refund_failed"
 
 
-async def _transfer_to_tester(sub_id: str, job_id: str, tester_email: str,
-                              destination: str, payout: float) -> dict:
+async def _transfer_to_tester(
+    sub_id: str, job_id: str, tester_email: str, destination: str, payout: float
+) -> dict:
     """Pay one approved submission. Returns fields to $set on it; never raises.
 
     The caller decides when to write them, because the approval has to land whether or not
@@ -516,8 +606,12 @@ async def _refund_unclaimed(job: dict, refund_amount: int, unclaimed: int) -> di
             # any kind before and two call sites, so a second pass could refund twice.
             idempotency_key="ptb-refund-unclaimed-{}".format(job["_id"]),
         )
-        logger.info("Refunded %d cents for %d unclaimed slots on job %s",
-                    refund_amount, unclaimed, job["_id"])
+        logger.info(
+            "Refunded %d cents for %d unclaimed slots on job %s",
+            refund_amount,
+            unclaimed,
+            job["_id"],
+        )
         return {
             "unclaimed_refund_status": REFUND_DONE,
             "unclaimed_refund_id": refund.id,
@@ -550,7 +644,9 @@ async def check_and_refund_unclaimed_slots(job: dict):
     if unclaimed <= 0 or not job.get("stripe_payment_intent_id"):
         return
 
-    refund_amount = int(round(job["payout_amount"] * (1 + PLATFORM_FEE_RATE) * unclaimed * 100))
+    refund_amount = int(
+        round(job["payout_amount"] * (1 + PLATFORM_FEE_RATE) * unclaimed * 100)
+    )
     if refund_amount <= 0:
         return
 
@@ -577,17 +673,29 @@ async def reconcile_unpaid_money(tester_email: str = None) -> dict:
             # Paid by an earlier attempt; only the marker is stale.
             await submissions_col.update_one(
                 {"_id": sub["_id"]},
-                {"$set": {"payout_status": PAYOUT_PAID, "payout_amount_owed": None}})
+                {"$set": {"payout_status": PAYOUT_PAID, "payout_amount_owed": None}},
+            )
             continue
         tester = await users_col.find_one({"email": sub["tester_email"]})
         owed = sub.get("payout_amount_owed") or 0
-        if not (tester and tester.get("stripe_connect_onboarded")
-                and tester.get("stripe_connect_id")) or owed <= 0:
+        if (
+            not (
+                tester
+                and tester.get("stripe_connect_onboarded")
+                and tester.get("stripe_connect_id")
+            )
+            or owed <= 0
+        ):
             # Nothing to send it to yet. Stays queryable rather than being cleared.
             still_owed.append(sub["_id"])
             continue
-        fields = await _transfer_to_tester(sub["_id"], sub["job_id"], sub["tester_email"],
-                                           tester["stripe_connect_id"], owed)
+        fields = await _transfer_to_tester(
+            sub["_id"],
+            sub["job_id"],
+            sub["tester_email"],
+            tester["stripe_connect_id"],
+            owed,
+        )
         await submissions_col.update_one({"_id": sub["_id"]}, {"$set": fields})
         if fields.get("payout_status") == PAYOUT_PAID:
             paid += 1
@@ -599,17 +707,26 @@ async def reconcile_unpaid_money(tester_email: str = None) -> dict:
             cents = job.get("unclaimed_refund_cents") or 0
             if cents <= 0 or not job.get("stripe_payment_intent_id"):
                 continue
-            fields = await _refund_unclaimed(job, cents,
-                                             job.get("unclaimed_refund_slots") or 0)
+            fields = await _refund_unclaimed(
+                job, cents, job.get("unclaimed_refund_slots") or 0
+            )
             await jobs_col.update_one({"_id": job["_id"]}, {"$set": fields})
             if fields.get("unclaimed_refund_status") == REFUND_DONE:
                 refunded += 1
 
     if paid or refunded or still_owed:
-        logger.info("payout reconcile: %d paid, %d refunded, %d still owed",
-                    paid, refunded, len(still_owed))
-    return {"transfers_paid": paid, "refunds_completed": refunded,
-            "still_owed": still_owed}
+        logger.info(
+            "payout reconcile: %d paid, %d refunded, %d still owed",
+            paid,
+            refunded,
+            len(still_owed),
+        )
+    return {
+        "transfers_paid": paid,
+        "refunds_completed": refunded,
+        "still_owed": still_owed,
+    }
+
 
 SERVICE_TYPES = [
     {
@@ -640,9 +757,11 @@ SERVICE_TYPES = [
 
 # --- Routes ---
 
+
 @app.get("/")
 async def root():
     return {"message": "PeerTest Hub API", "version": "1.0.0", "status": "running"}
+
 
 @app.get("/health")
 async def health():
@@ -654,7 +773,9 @@ async def health():
         "jobs": await jobs_col.count_documents({}),
     }
 
+
 # --- Auth ---
+
 
 @app.post("/api/auth/register", status_code=201)
 async def register(body: UserRegister, response: Response):
@@ -671,7 +792,9 @@ async def register(body: UserRegister, response: Response):
         "created_at": datetime.utcnow().isoformat(),
         "email_verified": False,
         "email_verification_code": verification_code,
-        "email_verification_code_expires": (datetime.utcnow() + timedelta(minutes=10)).isoformat(),
+        "email_verification_code_expires": (
+            datetime.utcnow() + timedelta(minutes=10)
+        ).isoformat(),
         "email_verification_attempts": 0,
         "verification_last_sent": datetime.utcnow().isoformat(),
         "public_slug": f"tester_{uuid.uuid4().hex[:10]}",
@@ -696,14 +819,21 @@ async def register(body: UserRegister, response: Response):
 
     access_token = create_access_token({"sub": body.email, "role": body.role})
     refresh_token = create_refresh_token()
-    await refresh_tokens_col.insert_one({
-        "token": refresh_token,
-        "email": body.email,
-        "expires_at": datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-    })
+    await refresh_tokens_col.insert_one(
+        {
+            "token": refresh_token,
+            "email": body.email,
+            "expires_at": datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        }
+    )
     set_refresh_cookie(response, refresh_token)
 
-    return {"access_token": access_token, "token_type": "bearer", "user": user_public(user_doc)}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user_public(user_doc),
+    }
+
 
 @app.post("/api/auth/login")
 async def login(body: UserLogin, response: Response):
@@ -713,14 +843,21 @@ async def login(body: UserLogin, response: Response):
 
     access_token = create_access_token({"sub": user["email"], "role": user["role"]})
     refresh_token = create_refresh_token()
-    await refresh_tokens_col.insert_one({
-        "token": refresh_token,
-        "email": user["email"],
-        "expires_at": datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-    })
+    await refresh_tokens_col.insert_one(
+        {
+            "token": refresh_token,
+            "email": user["email"],
+            "expires_at": datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        }
+    )
     set_refresh_cookie(response, refresh_token)
 
-    return {"access_token": access_token, "token_type": "bearer", "user": user_public(user)}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user_public(user),
+    }
+
 
 @app.post("/api/auth/refresh")
 async def refresh(request: Request, response: Response):
@@ -744,15 +881,22 @@ async def refresh(request: Request, response: Response):
     # Rotate refresh token
     new_refresh = create_refresh_token()
     await refresh_tokens_col.delete_one({"_id": record["_id"]})
-    await refresh_tokens_col.insert_one({
-        "token": new_refresh,
-        "email": user["email"],
-        "expires_at": datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-    })
+    await refresh_tokens_col.insert_one(
+        {
+            "token": new_refresh,
+            "email": user["email"],
+            "expires_at": datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        }
+    )
     set_refresh_cookie(response, new_refresh)
 
     access_token = create_access_token({"sub": user["email"], "role": user["role"]})
-    return {"access_token": access_token, "token_type": "bearer", "user": user_public(user)}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user_public(user),
+    }
+
 
 @app.post("/api/auth/logout")
 async def logout(request: Request, response: Response):
@@ -762,6 +906,7 @@ async def logout(request: Request, response: Response):
     clear_refresh_cookie(response)
     return {"message": "Logged out"}
 
+
 @app.get("/api/auth/me")
 async def get_me(email: str = Depends(verify_token)):
     user = await get_user_or_404(email)
@@ -769,10 +914,13 @@ async def get_me(email: str = Depends(verify_token)):
     result["created_at"] = user["created_at"]
     return result
 
+
 # --- Onboarding: Email Verification ---
+
 
 def check_onboarding_complete(user: dict) -> bool:
     return user.get("email_verified", False)
+
 
 @app.post("/api/auth/verify-email-code")
 async def verify_email_code(body: VerifyCodeBody, email: str = Depends(verify_token)):
@@ -781,11 +929,15 @@ async def verify_email_code(body: VerifyCodeBody, email: str = Depends(verify_to
         return {"message": "Email already verified", "user": user_public(user)}
 
     if user.get("email_verification_attempts", 0) >= 3:
-        raise HTTPException(status_code=429, detail="Too many attempts. Please request a new code.")
+        raise HTTPException(
+            status_code=429, detail="Too many attempts. Please request a new code."
+        )
 
     expires = user.get("email_verification_code_expires", "")
     if expires and datetime.fromisoformat(expires) < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="Code expired. Please request a new one.")
+        raise HTTPException(
+            status_code=400, detail="Code expired. Please request a new one."
+        )
 
     if body.code != user.get("email_verification_code"):
         await users_col.update_one(
@@ -813,6 +965,7 @@ async def verify_email_code(body: VerifyCodeBody, email: str = Depends(verify_to
     await users_col.update_one({"email": email}, {"$set": update})
     return {"message": "Email verified successfully", "user": user_public(user)}
 
+
 @app.post("/api/auth/resend-verification-code")
 async def resend_verification_code(email: str = Depends(verify_token)):
     user = await get_user_or_404(email)
@@ -824,19 +977,26 @@ async def resend_verification_code(email: str = Depends(verify_token)):
         try:
             last_dt = datetime.fromisoformat(last_sent)
             if (datetime.utcnow() - last_dt).total_seconds() < 60:
-                raise HTTPException(status_code=429, detail="Please wait 60 seconds before requesting a new code")
+                raise HTTPException(
+                    status_code=429,
+                    detail="Please wait 60 seconds before requesting a new code",
+                )
         except (ValueError, TypeError):
             pass
 
     new_code = generate_verification_code()
     await users_col.update_one(
         {"email": email},
-        {"$set": {
-            "email_verification_code": new_code,
-            "email_verification_code_expires": (datetime.utcnow() + timedelta(minutes=10)).isoformat(),
-            "email_verification_attempts": 0,
-            "verification_last_sent": datetime.utcnow().isoformat(),
-        }},
+        {
+            "$set": {
+                "email_verification_code": new_code,
+                "email_verification_code_expires": (
+                    datetime.utcnow() + timedelta(minutes=10)
+                ).isoformat(),
+                "email_verification_attempts": 0,
+                "verification_last_sent": datetime.utcnow().isoformat(),
+            }
+        },
     )
     send_email(
         email,
@@ -845,7 +1005,9 @@ async def resend_verification_code(email: str = Depends(verify_token)):
     )
     return {"message": "New verification code sent"}
 
+
 # --- Dashboard ---
+
 
 @app.get("/api/dashboard")
 async def get_dashboard(email: str = Depends(verify_token)):
@@ -853,20 +1015,34 @@ async def get_dashboard(email: str = Depends(verify_token)):
 
     if user["role"] == "builder":
         total_projects = await projects_col.count_documents({"builder_email": email})
-        active_jobs = await jobs_col.count_documents({"builder_email": email, "status": {"$in": ["open", "in_progress"]}})
-        pending_reviews = await submissions_col.count_documents({"builder_email": email, "status": "submitted"})
-        completed_jobs = await jobs_col.count_documents({"builder_email": email, "status": "completed"})
+        active_jobs = await jobs_col.count_documents(
+            {"builder_email": email, "status": {"$in": ["open", "in_progress"]}}
+        )
+        pending_reviews = await submissions_col.count_documents(
+            {"builder_email": email, "status": "submitted"}
+        )
+        completed_jobs = await jobs_col.count_documents(
+            {"builder_email": email, "status": "completed"}
+        )
 
         # Total spent: v1 jobs total_charge + v2 bid total_charge
         spent_pipeline = [
-            {"$match": {"builder_email": email, "status": {"$ne": "pending_payment"}, "total_charge": {"$gt": 0}}},
+            {
+                "$match": {
+                    "builder_email": email,
+                    "status": {"$ne": "pending_payment"},
+                    "total_charge": {"$gt": 0},
+                }
+            },
             {"$group": {"_id": None, "total": {"$sum": "$total_charge"}}},
         ]
         spent_result = await jobs_col.aggregate(spent_pipeline).to_list(1)
         total_spent = spent_result[0]["total"] if spent_result else 0
 
         # V2 bid spending
-        builder_v2_jobs = await jobs_col.find({"builder_email": email, "version": 2}).to_list(200)
+        builder_v2_jobs = await jobs_col.find(
+            {"builder_email": email, "version": 2}
+        ).to_list(200)
         v2_job_ids = [j["_id"] for j in builder_v2_jobs]
         bid_spent_pipeline = [
             {"$match": {"job_id": {"$in": v2_job_ids}, "payment_status": "paid"}},
@@ -876,7 +1052,9 @@ async def get_dashboard(email: str = Depends(verify_token)):
         total_spent += bid_spent_result[0]["total"] if bid_spent_result else 0
 
         # Pending bids count for builder
-        pending_bids = await bids_col.count_documents({"job_id": {"$in": v2_job_ids}, "status": "pending"})
+        pending_bids = await bids_col.count_documents(
+            {"job_id": {"$in": v2_job_ids}, "status": "pending"}
+        )
 
         return {
             "role": "builder",
@@ -890,14 +1068,33 @@ async def get_dashboard(email: str = Depends(verify_token)):
             },
         }
     else:
-        claimed = await submissions_col.count_documents({"tester_email": email, "status": "draft"})
-        completed = await submissions_col.count_documents({"tester_email": email, "status": "approved"})
-        pending = await submissions_col.count_documents({"tester_email": email, "status": "submitted"})
+        claimed = await submissions_col.count_documents(
+            {"tester_email": email, "status": "draft"}
+        )
+        completed = await submissions_col.count_documents(
+            {"tester_email": email, "status": "approved"}
+        )
+        pending = await submissions_col.count_documents(
+            {"tester_email": email, "status": "submitted"}
+        )
 
         # Earnings: v1 from job.payout_amount, v2 from submission.payout_amount
         v1_pipeline = [
-            {"$match": {"tester_email": email, "status": "approved", "payout_amount": None}},
-            {"$lookup": {"from": "jobs", "localField": "job_id", "foreignField": "_id", "as": "job"}},
+            {
+                "$match": {
+                    "tester_email": email,
+                    "status": "approved",
+                    "payout_amount": None,
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "jobs",
+                    "localField": "job_id",
+                    "foreignField": "_id",
+                    "as": "job",
+                }
+            },
             {"$unwind": "$job"},
             {"$group": {"_id": None, "total": {"$sum": "$job.payout_amount"}}},
         ]
@@ -905,7 +1102,13 @@ async def get_dashboard(email: str = Depends(verify_token)):
         v1_earnings = v1_result[0]["total"] if v1_result else 0
 
         v2_pipeline = [
-            {"$match": {"tester_email": email, "status": "approved", "payout_amount": {"$gt": 0}}},
+            {
+                "$match": {
+                    "tester_email": email,
+                    "status": "approved",
+                    "payout_amount": {"$gt": 0},
+                }
+            },
             {"$group": {"_id": None, "total": {"$sum": "$payout_amount"}}},
         ]
         v2_result = await submissions_col.aggregate(v2_pipeline).to_list(1)
@@ -914,7 +1117,9 @@ async def get_dashboard(email: str = Depends(verify_token)):
         earnings = v1_earnings + v2_earnings
 
         # Active bids count for tester
-        active_bids = await bids_col.count_documents({"tester_email": email, "status": "pending"})
+        active_bids = await bids_col.count_documents(
+            {"tester_email": email, "status": "pending"}
+        )
 
         return {
             "role": "tester",
@@ -928,7 +1133,9 @@ async def get_dashboard(email: str = Depends(verify_token)):
             "stripe_connect_onboarded": user.get("stripe_connect_onboarded", False),
         }
 
+
 # --- Projects ---
+
 
 @app.post("/api/projects", status_code=201)
 async def create_project(body: ProjectCreate, email: str = Depends(verify_token)):
@@ -949,6 +1156,7 @@ async def create_project(body: ProjectCreate, email: str = Depends(verify_token)
     await projects_col.insert_one(doc)
     return doc_to_dict(doc)
 
+
 @app.get("/api/projects")
 async def list_projects(email: str = Depends(verify_token)):
     user = await get_user_or_404(email)
@@ -958,6 +1166,7 @@ async def list_projects(email: str = Depends(verify_token)):
         cursor = projects_col.find({"status": "active"})
     return [doc_to_dict(d) for d in await cursor.to_list(100)]
 
+
 @app.get("/api/projects/{project_id}")
 async def get_project(project_id: str, email: str = Depends(verify_token)):
     doc = await projects_col.find_one({"_id": project_id})
@@ -965,8 +1174,11 @@ async def get_project(project_id: str, email: str = Depends(verify_token)):
         raise HTTPException(status_code=404, detail="Project not found")
     return doc_to_dict(doc)
 
+
 @app.put("/api/projects/{project_id}")
-async def update_project(project_id: str, body: ProjectUpdate, email: str = Depends(verify_token)):
+async def update_project(
+    project_id: str, body: ProjectUpdate, email: str = Depends(verify_token)
+):
     user = await get_user_or_404(email)
     if user["role"] != "builder":
         raise HTTPException(status_code=403, detail="Only builders can update projects")
@@ -981,13 +1193,17 @@ async def update_project(project_id: str, body: ProjectUpdate, email: str = Depe
         doc.update(updates)
     return doc_to_dict(doc)
 
+
 # --- Service Types (public) ---
+
 
 @app.get("/api/pricing/service-types")
 async def get_service_types():
     return SERVICE_TYPES
 
+
 # --- Jobs ---
+
 
 @app.post("/api/jobs", status_code=201)
 async def create_job(body: JobCreate, email: str = Depends(verify_token)):
@@ -995,7 +1211,9 @@ async def create_job(body: JobCreate, email: str = Depends(verify_token)):
     if user["role"] != "builder":
         raise HTTPException(status_code=403, detail="Only builders can create jobs")
 
-    project = await projects_col.find_one({"_id": body.project_id, "builder_email": email})
+    project = await projects_col.find_one(
+        {"_id": body.project_id, "builder_email": email}
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -1043,6 +1261,7 @@ async def create_job(body: JobCreate, email: str = Depends(verify_token)):
     result["client_secret"] = pi.client_secret
     return result
 
+
 @app.post("/api/jobs/{job_id}/confirm-payment")
 async def confirm_payment(job_id: str, email: str = Depends(verify_token)):
     user = await get_user_or_404(email)
@@ -1058,11 +1277,14 @@ async def confirm_payment(job_id: str, email: str = Depends(verify_token)):
     # Verify with Stripe that the PI succeeded
     pi = stripe.PaymentIntent.retrieve(job["stripe_payment_intent_id"])
     if pi.status != "succeeded":
-        raise HTTPException(status_code=400, detail=f"Payment not completed. Status: {pi.status}")
+        raise HTTPException(
+            status_code=400, detail=f"Payment not completed. Status: {pi.status}"
+        )
 
     await jobs_col.update_one({"_id": job_id}, {"$set": {"status": "open"}})
     job["status"] = "open"
     return doc_to_dict(job)
+
 
 @app.post("/api/jobs/{job_id}/payment-intent")
 async def get_payment_intent(job_id: str, email: str = Depends(verify_token)):
@@ -1084,7 +1306,11 @@ async def get_payment_intent(job_id: str, email: str = Depends(verify_token)):
             # Already paid — go ahead and mark open
             await jobs_col.update_one({"_id": job_id}, {"$set": {"status": "open"}})
             return {"client_secret": pi.client_secret, "already_paid": True}
-        if pi.status in ("requires_payment_method", "requires_confirmation", "requires_action"):
+        if pi.status in (
+            "requires_payment_method",
+            "requires_confirmation",
+            "requires_action",
+        ):
             return {"client_secret": pi.client_secret, "already_paid": False}
 
     # PI cancelled or in a bad state — create a new one
@@ -1096,10 +1322,14 @@ async def get_payment_intent(job_id: str, email: str = Depends(verify_token)):
         metadata={"type": "job_payment", "builder_email": email},
         automatic_payment_methods={"enabled": True},
     )
-    await jobs_col.update_one({"_id": job_id}, {"$set": {"stripe_payment_intent_id": new_pi.id}})
+    await jobs_col.update_one(
+        {"_id": job_id}, {"$set": {"stripe_payment_intent_id": new_pi.id}}
+    )
     return {"client_secret": new_pi.client_secret, "already_paid": False}
 
+
 # --- V2 Structured Jobs ---
+
 
 @app.post("/api/v2/jobs", status_code=201)
 async def create_job_v2(body: JobCreateV2, email: str = Depends(verify_token)):
@@ -1107,7 +1337,9 @@ async def create_job_v2(body: JobCreateV2, email: str = Depends(verify_token)):
     if user["role"] != "builder":
         raise HTTPException(status_code=403, detail="Only builders can create jobs")
 
-    project = await projects_col.find_one({"_id": body.project_id, "builder_email": email})
+    project = await projects_col.find_one(
+        {"_id": body.project_id, "builder_email": email}
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -1119,20 +1351,24 @@ async def create_job_v2(body: JobCreateV2, email: str = Depends(verify_token)):
         for item in role.items:
             item_id = f"item_{uuid.uuid4().hex[:8]}"
             proposed_total += item.proposed_price
-            items.append({
-                "id": item_id,
-                "title": item.title,
-                "description": item.description,
-                "service_type": item.service_type,
-                "proposed_price": item.proposed_price,
-                "estimated_minutes": item.estimated_minutes,
-            })
-        roles.append({
-            "id": role_id,
-            "name": role.name,
-            "description": role.description,
-            "items": items,
-        })
+            items.append(
+                {
+                    "id": item_id,
+                    "title": item.title,
+                    "description": item.description,
+                    "service_type": item.service_type,
+                    "proposed_price": item.proposed_price,
+                    "estimated_minutes": item.estimated_minutes,
+                }
+            )
+        roles.append(
+            {
+                "id": role_id,
+                "name": role.name,
+                "description": role.description,
+                "items": items,
+            }
+        )
 
     job_id = f"job_{uuid.uuid4().hex[:8]}"
     doc = {
@@ -1161,6 +1397,7 @@ async def create_job_v2(body: JobCreateV2, email: str = Depends(verify_token)):
     await jobs_col.insert_one(doc)
     return doc_to_dict(doc)
 
+
 @app.get("/api/jobs")
 async def list_jobs(email: str = Depends(verify_token)):
     user = await get_user_or_404(email)
@@ -1168,17 +1405,24 @@ async def list_jobs(email: str = Depends(verify_token)):
         cursor = jobs_col.find({"builder_email": email})
     else:
         # Testers should not see pending_payment jobs
-        cursor = jobs_col.find({
-            "$or": [
-                {"status": {"$in": ["open", "in_progress"]}},
-                {"assigned_testers": email},
-            ]
-        })
+        cursor = jobs_col.find(
+            {
+                "$or": [
+                    {"status": {"$in": ["open", "in_progress"]}},
+                    {"assigned_testers": email},
+                ]
+            }
+        )
     return [doc_to_dict(d) for d in await cursor.to_list(200)]
+
 
 @app.get("/api/jobs/public")
 async def list_public_jobs():
-    jobs = await jobs_col.find({"status": {"$in": ["open", "in_progress"]}}).sort("created_at", -1).to_list(50)
+    jobs = (
+        await jobs_col.find({"status": {"$in": ["open", "in_progress"]}})
+        .sort("created_at", -1)
+        .to_list(50)
+    )
 
     result = []
     for job in jobs:
@@ -1226,12 +1470,14 @@ async def list_public_jobs():
 
     return result
 
+
 @app.get("/api/jobs/{job_id}")
 async def get_job(job_id: str, email: str = Depends(verify_token)):
     doc = await jobs_col.find_one({"_id": job_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Job not found")
     return doc_to_dict(doc)
+
 
 @app.post("/api/jobs/{job_id}/claim")
 async def claim_job(job_id: str, email: str = Depends(verify_token)):
@@ -1280,7 +1526,10 @@ async def claim_job(job_id: str, email: str = Depends(verify_token)):
     new_status = "in_progress" if job["status"] == "open" else job["status"]
     await jobs_col.update_one(
         {"_id": job_id},
-        {"$push": {"assigned_testers": email, "submissions": sub_id}, "$set": {"status": new_status}},
+        {
+            "$push": {"assigned_testers": email, "submissions": sub_id},
+            "$set": {"status": new_status},
+        },
     )
 
     job["assigned_testers"].append(email)
@@ -1293,12 +1542,23 @@ async def claim_job(job_id: str, email: str = Depends(verify_token)):
         send_email(
             job["builder_email"],
             f"A tester claimed your job: {job['title']}",
-            email_job_claimed_html(builder["first_name"], f"{user['first_name']} {user['last_name']}", job["title"], job_id),
+            email_job_claimed_html(
+                builder["first_name"],
+                f"{user['first_name']} {user['last_name']}",
+                job["title"],
+                job_id,
+            ),
         )
 
-    return {"message": "Job claimed successfully", "submission_id": sub_id, "job": doc_to_dict(job)}
+    return {
+        "message": "Job claimed successfully",
+        "submission_id": sub_id,
+        "job": doc_to_dict(job),
+    }
+
 
 # --- Bids ---
+
 
 def get_scope_items(job: dict, bid: dict) -> list:
     """Get all items within a bid's scope based on assignment_type."""
@@ -1322,7 +1582,10 @@ def get_scope_items(job: dict, bid: dict) -> list:
         return []
     return []
 
-def get_proposed_price_for_scope(job: dict, scope_role_id: Optional[str], scope_item_id: Optional[str]) -> float:
+
+def get_proposed_price_for_scope(
+    job: dict, scope_role_id: Optional[str], scope_item_id: Optional[str]
+) -> float:
     """Calculate proposed price for a bid scope."""
     assignment = job.get("assignment_type")
     roles = job.get("roles", [])
@@ -1340,6 +1603,7 @@ def get_proposed_price_for_scope(job: dict, scope_role_id: Optional[str], scope_
                     return item["proposed_price"]
     return 0.0
 
+
 @app.post("/api/jobs/{job_id}/bids", status_code=201)
 async def create_bid(job_id: str, body: BidCreate, email: str = Depends(verify_token)):
     user = await get_user_or_404(email)
@@ -1350,7 +1614,9 @@ async def create_bid(job_id: str, body: BidCreate, email: str = Depends(verify_t
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.get("version") != 2:
-        raise HTTPException(status_code=400, detail="Bidding is only for structured jobs")
+        raise HTTPException(
+            status_code=400, detail="Bidding is only for structured jobs"
+        )
     if job["status"] not in ("open", "in_progress"):
         raise HTTPException(status_code=400, detail="Job is not accepting bids")
 
@@ -1358,9 +1624,13 @@ async def create_bid(job_id: str, body: BidCreate, email: str = Depends(verify_t
 
     # Validate scope fields
     if assignment == "per_role" and not body.scope_role_id:
-        raise HTTPException(status_code=400, detail="scope_role_id is required for per_role jobs")
+        raise HTTPException(
+            status_code=400, detail="scope_role_id is required for per_role jobs"
+        )
     if assignment == "per_item" and not body.scope_item_id:
-        raise HTTPException(status_code=400, detail="scope_item_id is required for per_item jobs")
+        raise HTTPException(
+            status_code=400, detail="scope_item_id is required for per_item jobs"
+        )
 
     # Check for existing pending bid in same scope
     dup_query = {"job_id": job_id, "tester_email": email, "status": "pending"}
@@ -1369,7 +1639,9 @@ async def create_bid(job_id: str, body: BidCreate, email: str = Depends(verify_t
     elif assignment == "per_item":
         dup_query["scope_item_id"] = body.scope_item_id
     if await bids_col.find_one(dup_query):
-        raise HTTPException(status_code=400, detail="You already have a pending bid for this scope")
+        raise HTTPException(
+            status_code=400, detail="You already have a pending bid for this scope"
+        )
 
     proposed = get_proposed_price_for_scope(job, body.scope_role_id, body.scope_item_id)
     is_counter = abs(body.bid_price - proposed) > 0.01
@@ -1404,10 +1676,18 @@ async def create_bid(job_id: str, body: BidCreate, email: str = Depends(verify_t
         send_email(
             job["builder_email"],
             f"New bid on your job: {job['title']}",
-            email_new_bid_html(builder["first_name"], f"{user['first_name']} {user['last_name']}", job["title"], job_id, body.bid_price, is_counter),
+            email_new_bid_html(
+                builder["first_name"],
+                f"{user['first_name']} {user['last_name']}",
+                job["title"],
+                job_id,
+                body.bid_price,
+                is_counter,
+            ),
         )
 
     return doc_to_dict(bid_doc)
+
 
 @app.get("/api/jobs/{job_id}/bids")
 async def list_job_bids(job_id: str, email: str = Depends(verify_token)):
@@ -1417,34 +1697,59 @@ async def list_job_bids(job_id: str, email: str = Depends(verify_token)):
         raise HTTPException(status_code=404, detail="Job not found")
 
     if user["role"] == "builder" and job["builder_email"] == email:
-        bids = await bids_col.find({"job_id": job_id}).sort("created_at", -1).to_list(100)
+        bids = (
+            await bids_col.find({"job_id": job_id}).sort("created_at", -1).to_list(100)
+        )
     elif user["role"] == "tester":
-        bids = await bids_col.find({"job_id": job_id, "tester_email": email}).sort("created_at", -1).to_list(100)
+        bids = (
+            await bids_col.find({"job_id": job_id, "tester_email": email})
+            .sort("created_at", -1)
+            .to_list(100)
+        )
     else:
-        raise HTTPException(status_code=403, detail="Not authorized to view bids for this job")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to view bids for this job"
+        )
 
     return [doc_to_dict(b) for b in bids]
+
 
 @app.get("/api/bids")
 async def list_my_bids(email: str = Depends(verify_token)):
     user = await get_user_or_404(email)
     if user["role"] == "tester":
-        bids = await bids_col.find({"tester_email": email}).sort("created_at", -1).to_list(200)
+        bids = (
+            await bids_col.find({"tester_email": email})
+            .sort("created_at", -1)
+            .to_list(200)
+        )
     else:
         # Builder sees bids on all their jobs
-        builder_jobs = await jobs_col.find({"builder_email": email, "version": 2}).to_list(200)
+        builder_jobs = await jobs_col.find(
+            {"builder_email": email, "version": 2}
+        ).to_list(200)
         job_ids = [j["_id"] for j in builder_jobs]
-        bids = await bids_col.find({"job_id": {"$in": job_ids}}).sort("created_at", -1).to_list(200)
+        bids = (
+            await bids_col.find({"job_id": {"$in": job_ids}})
+            .sort("created_at", -1)
+            .to_list(200)
+        )
 
     # Enrich bids missing job_title
     missing_title_ids = list({b["job_id"] for b in bids if not b.get("job_title")})
     if missing_title_ids:
-        jobs_lookup = {j["_id"]: j["title"] async for j in jobs_col.find({"_id": {"$in": missing_title_ids}}, {"title": 1})}
+        jobs_lookup = {
+            j["_id"]: j["title"]
+            async for j in jobs_col.find(
+                {"_id": {"$in": missing_title_ids}}, {"title": 1}
+            )
+        }
         for b in bids:
             if not b.get("job_title"):
                 b["job_title"] = jobs_lookup.get(b["job_id"], "")
 
     return [doc_to_dict(b) for b in bids]
+
 
 @app.get("/api/bids/{bid_id}")
 async def get_bid(bid_id: str, email: str = Depends(verify_token)):
@@ -1460,6 +1765,7 @@ async def get_bid(bid_id: str, email: str = Depends(verify_token)):
         raise HTTPException(status_code=403, detail="Not authorized to view this bid")
 
     return doc_to_dict(bid)
+
 
 @app.post("/api/bids/{bid_id}/accept")
 async def accept_bid(bid_id: str, email: str = Depends(verify_token)):
@@ -1485,18 +1791,28 @@ async def accept_bid(bid_id: str, email: str = Depends(verify_token)):
         amount=int(round(total_charge * 100)),
         currency="usd",
         customer=customer_id,
-        metadata={"type": "bid_payment", "bid_id": bid_id, "job_id": bid["job_id"], "builder_email": email},
+        metadata={
+            "type": "bid_payment",
+            "bid_id": bid_id,
+            "job_id": bid["job_id"],
+            "builder_email": email,
+        },
         automatic_payment_methods={"enabled": True},
     )
 
-    await bids_col.update_one({"_id": bid_id}, {"$set": {
-        "status": "accepted",
-        "platform_fee": platform_fee,
-        "total_charge": total_charge,
-        "stripe_payment_intent_id": pi.id,
-        "payment_status": "pending",
-        "accepted_at": datetime.utcnow().isoformat(),
-    }})
+    await bids_col.update_one(
+        {"_id": bid_id},
+        {
+            "$set": {
+                "status": "accepted",
+                "platform_fee": platform_fee,
+                "total_charge": total_charge,
+                "stripe_payment_intent_id": pi.id,
+                "payment_status": "pending",
+                "accepted_at": datetime.utcnow().isoformat(),
+            }
+        },
+    )
 
     bid["status"] = "accepted"
     bid["platform_fee"] = platform_fee
@@ -1507,6 +1823,7 @@ async def accept_bid(bid_id: str, email: str = Depends(verify_token)):
     result = doc_to_dict(bid)
     result["client_secret"] = pi.client_secret
     return result
+
 
 @app.post("/api/bids/{bid_id}/reject")
 async def reject_bid(bid_id: str, email: str = Depends(verify_token)):
@@ -1531,12 +1848,13 @@ async def reject_bid(bid_id: str, email: str = Depends(verify_token)):
     if tester:
         send_email(
             bid["tester_email"],
-            f"Your bid on \"{job['title']}\" was not accepted",
+            f'Your bid on "{job["title"]}" was not accepted',
             email_bid_rejected_html(tester["first_name"], job["title"]),
         )
 
     bid["status"] = "rejected"
     return doc_to_dict(bid)
+
 
 @app.post("/api/bids/{bid_id}/withdraw")
 async def withdraw_bid(bid_id: str, email: str = Depends(verify_token)):
@@ -1553,6 +1871,7 @@ async def withdraw_bid(bid_id: str, email: str = Depends(verify_token)):
     await bids_col.update_one({"_id": bid_id}, {"$set": {"status": "withdrawn"}})
     bid["status"] = "withdrawn"
     return doc_to_dict(bid)
+
 
 @app.post("/api/bids/{bid_id}/confirm-payment")
 async def confirm_bid_payment(bid_id: str, email: str = Depends(verify_token)):
@@ -1573,7 +1892,9 @@ async def confirm_bid_payment(bid_id: str, email: str = Depends(verify_token)):
     # Verify PI succeeded
     pi = stripe.PaymentIntent.retrieve(bid["stripe_payment_intent_id"])
     if pi.status != "succeeded":
-        raise HTTPException(status_code=400, detail=f"Payment not completed. Status: {pi.status}")
+        raise HTTPException(
+            status_code=400, detail=f"Payment not completed. Status: {pi.status}"
+        )
 
     await bids_col.update_one({"_id": bid_id}, {"$set": {"payment_status": "paid"}})
 
@@ -1589,7 +1910,11 @@ async def confirm_bid_payment(bid_id: str, email: str = Depends(verify_token)):
             role_map[item["id"]] = r["id"]
 
     tester = await users_col.find_one({"email": bid["tester_email"]})
-    tester_name = f"{tester['first_name']} {tester['last_name']}" if tester else bid.get("tester_name", "")
+    tester_name = (
+        f"{tester['first_name']} {tester['last_name']}"
+        if tester
+        else bid.get("tester_name", "")
+    )
 
     sub_ids = []
     for item in scope_items:
@@ -1629,26 +1954,38 @@ async def confirm_bid_payment(bid_id: str, email: str = Depends(verify_token)):
         sub_ids.append(sub_id)
 
     # Update job
-    await jobs_col.update_one({"_id": bid["job_id"]}, {
-        "$addToSet": {"assigned_testers": bid["tester_email"]},
-        "$push": {"submissions": {"$each": sub_ids}},
-        "$set": {"status": "in_progress"},
-    })
+    await jobs_col.update_one(
+        {"_id": bid["job_id"]},
+        {
+            "$addToSet": {"assigned_testers": bid["tester_email"]},
+            "$push": {"submissions": {"$each": sub_ids}},
+            "$set": {"status": "in_progress"},
+        },
+    )
 
     # Email tester
     if tester:
         send_email(
             bid["tester_email"],
-            f"Your bid on \"{job['title']}\" was accepted!",
-            email_bid_accepted_html(tester["first_name"], job["title"], bid["job_id"], bid["bid_price"]),
+            f'Your bid on "{job["title"]}" was accepted!',
+            email_bid_accepted_html(
+                tester["first_name"], job["title"], bid["job_id"], bid["bid_price"]
+            ),
         )
 
-    return {"message": "Payment confirmed, submissions created", "submission_ids": sub_ids}
+    return {
+        "message": "Payment confirmed, submissions created",
+        "submission_ids": sub_ids,
+    }
+
 
 # --- Submissions ---
 
+
 @app.get("/api/submissions")
-async def list_submissions(job_id: Optional[str] = None, email: str = Depends(verify_token)):
+async def list_submissions(
+    job_id: Optional[str] = None, email: str = Depends(verify_token)
+):
     user = await get_user_or_404(email)
     query = {}
     if job_id:
@@ -1658,6 +1995,7 @@ async def list_submissions(job_id: Optional[str] = None, email: str = Depends(ve
     else:
         query["tester_email"] = email
     return [doc_to_dict(d) for d in await submissions_col.find(query).to_list(200)]
+
 
 @app.get("/api/submissions/{sub_id}")
 async def get_submission(sub_id: str, email: str = Depends(verify_token)):
@@ -1671,11 +2009,16 @@ async def get_submission(sub_id: str, email: str = Depends(verify_token)):
         raise HTTPException(status_code=403, detail="Not your submission")
     return doc_to_dict(doc)
 
+
 @app.put("/api/submissions/{sub_id}")
-async def update_submission(sub_id: str, body: SubmissionUpdate, email: str = Depends(verify_token)):
+async def update_submission(
+    sub_id: str, body: SubmissionUpdate, email: str = Depends(verify_token)
+):
     user = await get_user_or_404(email)
     if user["role"] != "tester":
-        raise HTTPException(status_code=403, detail="Only testers can update submissions")
+        raise HTTPException(
+            status_code=403, detail="Only testers can update submissions"
+        )
 
     doc = await submissions_col.find_one({"_id": sub_id, "tester_email": email})
     if not doc:
@@ -1688,6 +2031,7 @@ async def update_submission(sub_id: str, body: SubmissionUpdate, email: str = De
         await submissions_col.update_one({"_id": sub_id}, {"$set": updates})
         doc.update(updates)
     return doc_to_dict(doc)
+
 
 @app.post("/api/submissions/{sub_id}/submit")
 async def submit_submission(sub_id: str, email: str = Depends(verify_token)):
@@ -1710,19 +2054,32 @@ async def submit_submission(sub_id: str, email: str = Depends(verify_token)):
             raise HTTPException(status_code=400, detail="Usability score is required")
     elif service_type == "record":
         if not doc.get("video_url"):
-            raise HTTPException(status_code=400, detail="Screen recording is required for record submissions")
+            raise HTTPException(
+                status_code=400,
+                detail="Screen recording is required for record submissions",
+            )
         if not doc.get("overall_feedback", "").strip():
             raise HTTPException(status_code=400, detail="Overall feedback is required")
     elif service_type == "document":
         if not doc.get("document_content", "").strip():
-            raise HTTPException(status_code=400, detail="Documentation content is required")
+            raise HTTPException(
+                status_code=400, detail="Documentation content is required"
+            )
     elif service_type == "voiceover":
         if not doc.get("video_url"):
-            raise HTTPException(status_code=400, detail="Narrated recording is required for voiceover submissions")
+            raise HTTPException(
+                status_code=400,
+                detail="Narrated recording is required for voiceover submissions",
+            )
 
     await submissions_col.update_one(
         {"_id": sub_id},
-        {"$set": {"status": "submitted", "submitted_at": datetime.utcnow().isoformat()}},
+        {
+            "$set": {
+                "status": "submitted",
+                "submitted_at": datetime.utcnow().isoformat(),
+            }
+        },
     )
     doc["status"] = "submitted"
     doc["submitted_at"] = datetime.utcnow().isoformat()
@@ -1744,20 +2101,31 @@ async def submit_submission(sub_id: str, email: str = Depends(verify_token)):
 
     return doc_to_dict(doc)
 
+
 @app.post("/api/submissions/{sub_id}/approve")
-async def approve_submission(sub_id: str, action: ReviewAction, email: str = Depends(verify_token)):
+async def approve_submission(
+    sub_id: str, action: ReviewAction, email: str = Depends(verify_token)
+):
     user = await get_user_or_404(email)
     if user["role"] != "builder":
-        raise HTTPException(status_code=403, detail="Only builders can approve submissions")
+        raise HTTPException(
+            status_code=403, detail="Only builders can approve submissions"
+        )
 
     doc = await submissions_col.find_one({"_id": sub_id, "builder_email": email})
     if not doc:
         raise HTTPException(status_code=404, detail="Submission not found")
     if doc["status"] != "submitted":
-        raise HTTPException(status_code=400, detail="Can only approve submitted submissions")
+        raise HTTPException(
+            status_code=400, detail="Can only approve submitted submissions"
+        )
 
     now = datetime.utcnow().isoformat()
-    update_fields = {"status": "approved", "review_feedback": action.feedback, "reviewed_at": now}
+    update_fields = {
+        "status": "approved",
+        "review_feedback": action.feedback,
+        "reviewed_at": now,
+    }
 
     if action.rating is not None:
         update_fields["builder_rating"] = action.rating
@@ -1773,14 +2141,25 @@ async def approve_submission(sub_id: str, action: ReviewAction, email: str = Dep
 
     payout = doc.get("payout_amount") or (job.get("payout_amount") if job else 0) or 0
 
-    if tester and tester.get("stripe_connect_onboarded") and tester.get("stripe_connect_id") and payout > 0:
+    if (
+        tester
+        and tester.get("stripe_connect_onboarded")
+        and tester.get("stripe_connect_id")
+        and payout > 0
+    ):
         # A failed transfer must not block the approval -- the work was done and reviewed,
         # and raising here would re-run the rating $inc above on the retry. So the failure
         # is recorded ON the submission (amount owed, reason, time) and picked up by
         # reconcile_unpaid_money(), instead of living only in the log.
-        update_fields.update(await _transfer_to_tester(
-            sub_id, doc["job_id"], doc["tester_email"],
-            tester["stripe_connect_id"], payout))
+        update_fields.update(
+            await _transfer_to_tester(
+                sub_id,
+                doc["job_id"],
+                doc["tester_email"],
+                tester["stripe_connect_id"],
+                payout,
+            )
+        )
         transfer_id = update_fields.get("stripe_transfer_id")
 
     await submissions_col.update_one({"_id": sub_id}, {"$set": update_fields})
@@ -1788,8 +2167,13 @@ async def approve_submission(sub_id: str, action: ReviewAction, email: str = Dep
     # Auto-complete job if all submissions resolved
     if job:
         all_subs = await submissions_col.find({"job_id": doc["job_id"]}).to_list(200)
-        if all(s["status"] in ("approved", "rejected") or s["_id"] == sub_id for s in all_subs):
-            await jobs_col.update_one({"_id": doc["job_id"]}, {"$set": {"status": "completed"}})
+        if all(
+            s["status"] in ("approved", "rejected") or s["_id"] == sub_id
+            for s in all_subs
+        ):
+            await jobs_col.update_one(
+                {"_id": doc["job_id"]}, {"$set": {"status": "completed"}}
+            )
             if not job.get("version") == 2:
                 await check_and_refund_unclaimed_slots(job)
 
@@ -1797,7 +2181,7 @@ async def approve_submission(sub_id: str, action: ReviewAction, email: str = Dep
     if tester and job:
         send_email(
             doc["tester_email"],
-            f"Your submission for \"{job['title']}\" was approved!",
+            f'Your submission for "{job["title"]}" was approved!',
             email_approved_html(tester["first_name"], job["title"], payout),
         )
 
@@ -1808,30 +2192,48 @@ async def approve_submission(sub_id: str, action: ReviewAction, email: str = Dep
         doc["stripe_transfer_id"] = transfer_id
     return doc_to_dict(doc)
 
+
 @app.post("/api/submissions/{sub_id}/reject")
-async def reject_submission(sub_id: str, action: ReviewAction, email: str = Depends(verify_token)):
+async def reject_submission(
+    sub_id: str, action: ReviewAction, email: str = Depends(verify_token)
+):
     user = await get_user_or_404(email)
     if user["role"] != "builder":
-        raise HTTPException(status_code=403, detail="Only builders can reject submissions")
+        raise HTTPException(
+            status_code=403, detail="Only builders can reject submissions"
+        )
 
     doc = await submissions_col.find_one({"_id": sub_id, "builder_email": email})
     if not doc:
         raise HTTPException(status_code=404, detail="Submission not found")
     if doc["status"] != "submitted":
-        raise HTTPException(status_code=400, detail="Can only reject submitted submissions")
+        raise HTTPException(
+            status_code=400, detail="Can only reject submitted submissions"
+        )
 
     now = datetime.utcnow().isoformat()
     await submissions_col.update_one(
         {"_id": sub_id},
-        {"$set": {"status": "rejected", "review_feedback": action.feedback, "reviewed_at": now}},
+        {
+            "$set": {
+                "status": "rejected",
+                "review_feedback": action.feedback,
+                "reviewed_at": now,
+            }
+        },
     )
 
     # Auto-complete job if all submissions resolved
     job = await jobs_col.find_one({"_id": doc["job_id"]})
     if job:
         all_subs = await submissions_col.find({"job_id": doc["job_id"]}).to_list(50)
-        if all(s["status"] in ("approved", "rejected") or s["_id"] == sub_id for s in all_subs):
-            await jobs_col.update_one({"_id": doc["job_id"]}, {"$set": {"status": "completed"}})
+        if all(
+            s["status"] in ("approved", "rejected") or s["_id"] == sub_id
+            for s in all_subs
+        ):
+            await jobs_col.update_one(
+                {"_id": doc["job_id"]}, {"$set": {"status": "completed"}}
+            )
             await check_and_refund_unclaimed_slots(job)
 
     # Notify tester
@@ -1839,7 +2241,7 @@ async def reject_submission(sub_id: str, action: ReviewAction, email: str = Depe
     if tester and job:
         send_email(
             doc["tester_email"],
-            f"Your submission for \"{job['title']}\" was not approved",
+            f'Your submission for "{job["title"]}" was not approved',
             email_rejected_html(tester["first_name"], job["title"], action.feedback),
         )
 
@@ -1848,7 +2250,9 @@ async def reject_submission(sub_id: str, action: ReviewAction, email: str = Depe
     doc["reviewed_at"] = now
     return doc_to_dict(doc)
 
+
 # --- Tester Profiles ---
+
 
 @app.get("/api/testers/{slug}")
 async def get_tester_profile(slug: str):
@@ -1857,23 +2261,40 @@ async def get_tester_profile(slug: str):
         raise HTTPException(status_code=404, detail="Tester not found")
 
     total_ratings = user.get("total_ratings", 0)
-    avg_rating = round(user.get("rating_sum", 0) / total_ratings, 1) if total_ratings > 0 else 0
-    completed = await submissions_col.count_documents({"tester_email": user["email"], "status": "approved"})
+    avg_rating = (
+        round(user.get("rating_sum", 0) / total_ratings, 1) if total_ratings > 0 else 0
+    )
+    completed = await submissions_col.count_documents(
+        {"tester_email": user["email"], "status": "approved"}
+    )
 
-    reviews = await submissions_col.find(
-        {"tester_email": user["email"], "status": "approved", "builder_rating": {"$ne": None}},
-    ).sort("reviewed_at", -1).limit(10).to_list(10)
+    reviews = (
+        await submissions_col.find(
+            {
+                "tester_email": user["email"],
+                "status": "approved",
+                "builder_rating": {"$ne": None},
+            },
+        )
+        .sort("reviewed_at", -1)
+        .limit(10)
+        .to_list(10)
+    )
 
     public_reviews = []
     for r in reviews:
         builder = await users_col.find_one({"email": r["builder_email"]})
-        public_reviews.append({
-            "job_title": r.get("job_title", ""),
-            "builder_name": f"{builder['first_name']} {builder['last_name']}" if builder else "Unknown",
-            "rating": r["builder_rating"],
-            "feedback": r.get("review_feedback", ""),
-            "reviewed_at": r.get("reviewed_at"),
-        })
+        public_reviews.append(
+            {
+                "job_title": r.get("job_title", ""),
+                "builder_name": f"{builder['first_name']} {builder['last_name']}"
+                if builder
+                else "Unknown",
+                "rating": r["builder_rating"],
+                "feedback": r.get("review_feedback", ""),
+                "reviewed_at": r.get("reviewed_at"),
+            }
+        )
 
     return {
         "first_name": user["first_name"],
@@ -1888,6 +2309,7 @@ async def get_tester_profile(slug: str):
         "reviews": public_reviews,
     }
 
+
 @app.put("/api/profile")
 async def update_profile(body: ProfileUpdate, email: str = Depends(verify_token)):
     user = await get_user_or_404(email)
@@ -1896,17 +2318,27 @@ async def update_profile(body: ProfileUpdate, email: str = Depends(verify_token)
 
     await users_col.update_one(
         {"email": email},
-        {"$set": {"bio": body.bio, "specialties": body.specialties[:10], "profile_visible": body.profile_visible}},
+        {
+            "$set": {
+                "bio": body.bio,
+                "specialties": body.specialties[:10],
+                "profile_visible": body.profile_visible,
+            }
+        },
     )
     user["bio"] = body.bio
     user["specialties"] = body.specialties[:10]
     user["profile_visible"] = body.profile_visible
     return {"message": "Profile updated", "user": user_public(user)}
 
+
 # --- Video Upload & Tags ---
 
+
 @app.post("/api/submissions/{sub_id}/upload-video")
-async def upload_video(sub_id: str, file: UploadFile = File(...), email: str = Depends(verify_token)):
+async def upload_video(
+    sub_id: str, file: UploadFile = File(...), email: str = Depends(verify_token)
+):
     user = await get_user_or_404(email)
     if user["role"] != "tester":
         raise HTTPException(status_code=403, detail="Only testers can upload videos")
@@ -1915,10 +2347,14 @@ async def upload_video(sub_id: str, file: UploadFile = File(...), email: str = D
     if not doc:
         raise HTTPException(status_code=404, detail="Submission not found")
     if doc["status"] != "draft":
-        raise HTTPException(status_code=400, detail="Can only upload video for draft submissions")
+        raise HTTPException(
+            status_code=400, detail="Can only upload video for draft submissions"
+        )
 
     if file.content_type not in ALLOWED_VIDEO_TYPES:
-        raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: webm, mp4, quicktime")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid file type. Allowed: webm, mp4, quicktime"
+        )
 
     ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "webm"
     filename = f"{sub_id}_{uuid.uuid4().hex[:8]}.{ext}"
@@ -1931,27 +2367,40 @@ async def upload_video(sub_id: str, file: UploadFile = File(...), email: str = D
             if size > MAX_UPLOAD_SIZE:
                 await f.close()
                 filepath.unlink(missing_ok=True)
-                raise HTTPException(status_code=400, detail="File too large (max 500MB)")
+                raise HTTPException(
+                    status_code=400, detail="File too large (max 500MB)"
+                )
             await f.write(chunk)
 
     video_url = f"/uploads/{filename}"
-    await submissions_col.update_one({"_id": sub_id}, {"$set": {"video_url": video_url}})
+    await submissions_col.update_one(
+        {"_id": sub_id}, {"$set": {"video_url": video_url}}
+    )
     return {"video_url": video_url}
 
+
 @app.post("/api/submissions/{sub_id}/upload-screenshot")
-async def upload_screenshot(sub_id: str, file: UploadFile = File(...), email: str = Depends(verify_token)):
+async def upload_screenshot(
+    sub_id: str, file: UploadFile = File(...), email: str = Depends(verify_token)
+):
     user = await get_user_or_404(email)
     if user["role"] != "tester":
-        raise HTTPException(status_code=403, detail="Only testers can upload screenshots")
+        raise HTTPException(
+            status_code=403, detail="Only testers can upload screenshots"
+        )
 
     doc = await submissions_col.find_one({"_id": sub_id, "tester_email": email})
     if not doc:
         raise HTTPException(status_code=404, detail="Submission not found")
     if doc["status"] != "draft":
-        raise HTTPException(status_code=400, detail="Can only upload screenshots for draft submissions")
+        raise HTTPException(
+            status_code=400, detail="Can only upload screenshots for draft submissions"
+        )
 
     if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail="Invalid file type. Allowed: png, jpeg, webp")
+        raise HTTPException(
+            status_code=400, detail="Invalid file type. Allowed: png, jpeg, webp"
+        )
 
     ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "png"
     filename = f"{sub_id}_{uuid.uuid4().hex[:8]}.{ext}"
@@ -1970,21 +2419,30 @@ async def upload_screenshot(sub_id: str, file: UploadFile = File(...), email: st
     screenshot_url = f"/uploads/screenshots/{filename}"
     return {"screenshot_url": screenshot_url}
 
+
 @app.post("/api/submissions/{sub_id}/upload-rrweb")
-async def upload_rrweb(sub_id: str, request: Request, email: str = Depends(verify_token)):
+async def upload_rrweb(
+    sub_id: str, request: Request, email: str = Depends(verify_token)
+):
     user = await get_user_or_404(email)
     if user["role"] != "tester":
-        raise HTTPException(status_code=403, detail="Only testers can upload session recordings")
+        raise HTTPException(
+            status_code=403, detail="Only testers can upload session recordings"
+        )
 
     doc = await submissions_col.find_one({"_id": sub_id, "tester_email": email})
     if not doc:
         raise HTTPException(status_code=404, detail="Submission not found")
     if doc["status"] != "draft":
-        raise HTTPException(status_code=400, detail="Can only upload rrweb for draft submissions")
+        raise HTTPException(
+            status_code=400, detail="Can only upload rrweb for draft submissions"
+        )
 
     body = await request.body()
     if len(body) > 50 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="rrweb recording too large (max 50MB)")
+        raise HTTPException(
+            status_code=400, detail="rrweb recording too large (max 50MB)"
+        )
 
     rrweb_dir = Path(UPLOAD_DIR) / "rrweb"
     rrweb_dir.mkdir(exist_ok=True)
@@ -1995,14 +2453,21 @@ async def upload_rrweb(sub_id: str, request: Request, email: str = Depends(verif
         await f.write(body)
 
     rrweb_url = f"/uploads/rrweb/{filename}"
-    await submissions_col.update_one({"_id": sub_id}, {"$set": {"rrweb_recording_url": rrweb_url}})
+    await submissions_col.update_one(
+        {"_id": sub_id}, {"$set": {"rrweb_recording_url": rrweb_url}}
+    )
     return {"rrweb_recording_url": rrweb_url}
 
+
 @app.put("/api/submissions/{sub_id}/session-timing")
-async def update_session_timing(sub_id: str, request: Request, email: str = Depends(verify_token)):
+async def update_session_timing(
+    sub_id: str, request: Request, email: str = Depends(verify_token)
+):
     user = await get_user_or_404(email)
     if user["role"] != "tester":
-        raise HTTPException(status_code=403, detail="Only testers can update session timing")
+        raise HTTPException(
+            status_code=403, detail="Only testers can update session timing"
+        )
 
     doc = await submissions_col.find_one({"_id": sub_id, "tester_email": email})
     if not doc:
@@ -2021,25 +2486,35 @@ async def update_session_timing(sub_id: str, request: Request, email: str = Depe
         await submissions_col.update_one({"_id": sub_id}, {"$set": update})
     return {"message": "Session timing updated"}
 
+
 @app.put("/api/submissions/{sub_id}/video-tags")
-async def update_video_tags(sub_id: str, body: VideoTagsUpdate, email: str = Depends(verify_token)):
+async def update_video_tags(
+    sub_id: str, body: VideoTagsUpdate, email: str = Depends(verify_token)
+):
     user = await get_user_or_404(email)
     doc = await submissions_col.find_one({"_id": sub_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Submission not found")
 
-    is_owner = (user["role"] == "tester" and doc["tester_email"] == email) or \
-               (user["role"] == "builder" and doc["builder_email"] == email)
+    is_owner = (user["role"] == "tester" and doc["tester_email"] == email) or (
+        user["role"] == "builder" and doc["builder_email"] == email
+    )
     if not is_owner:
-        raise HTTPException(status_code=403, detail="Not authorized to tag this submission")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to tag this submission"
+        )
     if not doc.get("video_url"):
-        raise HTTPException(status_code=400, detail="No video uploaded for this submission")
+        raise HTTPException(
+            status_code=400, detail="No video uploaded for this submission"
+        )
 
     tags = [t.model_dump() for t in body.video_tags]
     await submissions_col.update_one({"_id": sub_id}, {"$set": {"video_tags": tags}})
     return {"video_tags": tags}
 
+
 # --- Money owed (the query that makes a failed payout findable) ---
+
 
 @app.get("/api/payouts/owed")
 async def payouts_owed(email: str = Depends(verify_token)):
@@ -2059,29 +2534,37 @@ async def payouts_owed(email: str = Depends(verify_token)):
         sub_filter = {"builder_email": email, "payout_status": PAYOUT_FAILED}
 
     async for sub in submissions_col.find(sub_filter):
-        unpaid.append({
-            "submission_id": sub["_id"],
-            "job_id": sub.get("job_id"),
-            "job_title": sub.get("job_title"),
-            "tester_email": sub.get("tester_email"),
-            "amount": sub.get("payout_amount_owed"),
-            "reason": sub.get("payout_error"),
-            "failed_at": sub.get("payout_failed_at"),
-        })
+        unpaid.append(
+            {
+                "submission_id": sub["_id"],
+                "job_id": sub.get("job_id"),
+                "job_title": sub.get("job_title"),
+                "tester_email": sub.get("tester_email"),
+                "amount": sub.get("payout_amount_owed"),
+                "reason": sub.get("payout_error"),
+                "failed_at": sub.get("payout_failed_at"),
+            }
+        )
 
     if user["role"] == "builder":
-        async for job in jobs_col.find({"builder_email": email,
-                                        "unclaimed_refund_status": REFUND_FAILED}):
-            refunds.append({
-                "job_id": job["_id"],
-                "job_title": job.get("title"),
-                "amount_cents": job.get("unclaimed_refund_cents"),
-                "reason": job.get("unclaimed_refund_error"),
-                "failed_at": job.get("unclaimed_refund_failed_at"),
-            })
+        async for job in jobs_col.find(
+            {"builder_email": email, "unclaimed_refund_status": REFUND_FAILED}
+        ):
+            refunds.append(
+                {
+                    "job_id": job["_id"],
+                    "job_title": job.get("title"),
+                    "amount_cents": job.get("unclaimed_refund_cents"),
+                    "reason": job.get("unclaimed_refund_error"),
+                    "failed_at": job.get("unclaimed_refund_failed_at"),
+                }
+            )
 
-    return {"data": {"unpaid_payouts": unpaid, "refunds_pending": refunds},
-            "error": None, "message": "Success"}
+    return {
+        "data": {"unpaid_payouts": unpaid, "refunds_pending": refunds},
+        "error": None,
+        "message": "Success",
+    }
 
 
 @app.post("/api/payouts/retry")
@@ -2094,21 +2577,28 @@ async def payouts_retry(email: str = Depends(verify_token)):
     """
     user = await get_user_or_404(email)
     if user["role"] != "tester":
-        raise HTTPException(status_code=403, detail="Only testers can retry their own payouts")
+        raise HTTPException(
+            status_code=403, detail="Only testers can retry their own payouts"
+        )
     if not (user.get("stripe_connect_onboarded") and user.get("stripe_connect_id")):
-        raise HTTPException(status_code=400,
-                            detail="Finish Stripe Connect onboarding before retrying payouts")
+        raise HTTPException(
+            status_code=400,
+            detail="Finish Stripe Connect onboarding before retrying payouts",
+        )
     summary = await reconcile_unpaid_money(tester_email=email)
     return {"data": summary, "error": None, "message": "Success"}
 
 
 # --- Stripe Connect ---
 
+
 @app.post("/api/stripe/connect/onboard")
 async def stripe_connect_onboard(email: str = Depends(verify_token)):
     user = await get_user_or_404(email)
     if user["role"] != "tester":
-        raise HTTPException(status_code=403, detail="Only testers can onboard to Stripe Connect")
+        raise HTTPException(
+            status_code=403, detail="Only testers can onboard to Stripe Connect"
+        )
 
     account_id = user.get("stripe_connect_id")
     if not account_id:
@@ -2119,7 +2609,9 @@ async def stripe_connect_onboard(email: str = Depends(verify_token)):
             capabilities={"transfers": {"requested": True}},
         )
         account_id = account.id
-        await users_col.update_one({"email": email}, {"$set": {"stripe_connect_id": account_id}})
+        await users_col.update_one(
+            {"email": email}, {"$set": {"stripe_connect_id": account_id}}
+        )
 
     link = stripe.AccountLink.create(
         account=account_id,
@@ -2129,11 +2621,14 @@ async def stripe_connect_onboard(email: str = Depends(verify_token)):
     )
     return {"url": link.url, "account_id": account_id}
 
+
 @app.get("/api/stripe/connect/status")
 async def stripe_connect_status(email: str = Depends(verify_token)):
     user = await get_user_or_404(email)
     if user["role"] != "tester":
-        raise HTTPException(status_code=403, detail="Only testers can check Connect status")
+        raise HTTPException(
+            status_code=403, detail="Only testers can check Connect status"
+        )
 
     account_id = user.get("stripe_connect_id")
     onboarded = user.get("stripe_connect_onboarded", False)
@@ -2144,13 +2639,17 @@ async def stripe_connect_status(email: str = Depends(verify_token)):
             account = stripe.Account.retrieve(account_id)
             if account.charges_enabled or account.payouts_enabled:
                 onboarded = True
-                await users_col.update_one({"email": email}, {"$set": {"stripe_connect_onboarded": True}})
+                await users_col.update_one(
+                    {"email": email}, {"$set": {"stripe_connect_onboarded": True}}
+                )
         except Exception:
             pass
 
     return {"onboarded": onboarded, "account_id": account_id}
 
+
 # --- Stripe Webhook ---
+
 
 @app.post("/api/stripe/webhook")
 async def stripe_webhook(request: Request):
@@ -2166,8 +2665,14 @@ async def stripe_webhook(request: Request):
     returned None and both fell out of the bottom as {"received": True}. The first is
     correct and the second is a real payment for work nobody is doing.
     """
-    from bialkowned_stripe_webhook import (AsyncMongoDedup, AsyncMongoPaidEvents, Skip,
-                                           Unattributable, WebhookError, handle_async)
+    from bialkowned_stripe_webhook import (
+        AsyncMongoDedup,
+        AsyncMongoPaidEvents,
+        Skip,
+        Unattributable,
+        WebhookError,
+        handle_async,
+    )
 
     sig_header = request.headers.get("stripe-signature", "")
 
@@ -2182,7 +2687,9 @@ async def stripe_webhook(request: Request):
                 # Not a payment, and Stripe sends account.updated throughout onboarding --
                 # including before this program has a user row for the account. An
                 # unknown account is genuinely not ours rather than money we cannot place.
-                logger.warning("Webhook: Connect account %s has no user here", obj["id"])
+                logger.warning(
+                    "Webhook: Connect account %s has no user here", obj["id"]
+                )
                 raise Skip(f"no user for Connect account {obj['id']}")
             return {"kind": "account", "user": user}
 
@@ -2193,15 +2700,18 @@ async def stripe_webhook(request: Request):
         bid = await bids_col.find_one({"stripe_payment_intent_id": intent_id})
 
         if job is None and bid is None:
-            logger.error("Webhook: payment intent %s matches no job and no bid", intent_id)
+            logger.error(
+                "Webhook: payment intent %s matches no job and no bid", intent_id
+            )
             return None
 
         pending_job = job if job and job.get("status") == "pending_payment" else None
         pending_bid = bid if bid and bid.get("payment_status") == "pending" else None
 
         if pending_job is None and pending_bid is None:
-            raise Skip(f"payment intent {intent_id} was already settled by "
-                       f"/confirm-payment")
+            raise Skip(
+                f"payment intent {intent_id} was already settled by /confirm-payment"
+            )
 
         return {"kind": "payment", "job": pending_job, "bid": pending_bid}
 
@@ -2212,8 +2722,9 @@ async def stripe_webhook(request: Request):
                 {"_id": user["_id"]},
                 {"$set": {"stripe_connect_onboarded": True}},
             )
-            logger.info("Webhook: marked Connect account %s as onboarded",
-                        evt.obj["id"])
+            logger.info(
+                "Webhook: marked Connect account %s as onboarded", evt.obj["id"]
+            )
             return
 
         intent_id = evt.obj["id"]
@@ -2224,20 +2735,24 @@ async def stripe_webhook(request: Request):
                 {"_id": job["_id"]},
                 # The Stripe object that proves this was paid. The ERP reads this
                 # collection live and can only tie the job to cash if the row names it.
-                {"$set": {"status": "open", "payment_reference": intent_id}})
+                {"$set": {"status": "open", "payment_reference": intent_id}},
+            )
             if not result.matched_count:
                 raise RuntimeError(
-                    f"job {job['_id']} disappeared while opening it for {intent_id}")
+                    f"job {job['_id']} disappeared while opening it for {intent_id}"
+                )
             logger.info("Webhook: marked job %s as open (PI %s)", job["_id"], intent_id)
 
         if target["bid"] is not None:
             bid = target["bid"]
             result = await bids_col.update_one(
                 {"_id": bid["_id"]},
-                {"$set": {"payment_status": "paid", "payment_reference": intent_id}})
+                {"$set": {"payment_status": "paid", "payment_reference": intent_id}},
+            )
             if not result.matched_count:
                 raise RuntimeError(
-                    f"bid {bid['_id']} disappeared while marking it paid for {intent_id}")
+                    f"bid {bid['_id']} disappeared while marking it paid for {intent_id}"
+                )
             logger.info("Webhook: marked bid %s as paid (PI %s)", bid["_id"], intent_id)
 
     try:
@@ -2253,20 +2768,25 @@ async def stripe_webhook(request: Request):
         )
     except Unattributable as exc:
         logger.error("Webhook: could not attribute event: %s", exc)
-        raise HTTPException(status_code=500,
-                            detail="Payment could not be attributed") from exc
+        raise HTTPException(
+            status_code=500, detail="Payment could not be attributed"
+        ) from exc
     except WebhookError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 
     return {"received": True, **result.body}
 
+
 # --- Stripe Config (for frontend) ---
+
 
 @app.get("/api/stripe/config")
 async def stripe_config():
     return {"publishable_key": STRIPE_PUBLISHABLE_KEY}
 
+
 # --- Stats (public) ---
+
 
 @app.get("/api/stats")
 async def get_stats():
@@ -2279,14 +2799,17 @@ async def get_stats():
         "open_jobs": await jobs_col.count_documents({"status": "open"}),
     }
 
+
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=BACKEND_PORT)
 
 
 # --- fleet standard: GET /health names this service
 # Installed by core/standards/install_health.py — see STACK_STANDARD.md.
 from fleet_health import FleetHealth  # noqa: E402
+
 app.add_middleware(FleetHealth, service="Tester")

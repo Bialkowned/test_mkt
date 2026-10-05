@@ -1,26 +1,26 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import axios from 'axios'
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import axios from "axios";
 
 export default function Dashboard({ user }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchDashboard()
-  }, [])
+    fetchDashboard();
+  }, []);
 
   const fetchDashboard = async () => {
     try {
-      const res = await axios.get('/api/dashboard')
-      setData(res.data)
-  } catch {
-      setError('Failed to load dashboard')
+      const res = await axios.get("/api/dashboard");
+      setData(res.data);
+    } catch {
+      setError("Failed to load dashboard");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -34,37 +34,65 @@ export default function Dashboard({ user }) {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   if (error) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
       </div>
-    )
+    );
   }
 
-  const stats = data?.stats || {}
+  const stats = data?.stats || {};
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Welcome back, {user.first_name}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Welcome back, {user.first_name}
+          </h1>
           <p className="text-gray-500 mt-1 capitalize">{user.role} dashboard</p>
         </div>
       </div>
 
-      {user.role === 'builder' ? (
+      {user.role === "builder" ? (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-            <StatCard label="Projects" value={stats.total_projects} color="blue" />
-            <StatCard label="Active Jobs" value={stats.active_jobs} color="amber" />
-            <StatCard label="Pending Reviews" value={stats.pending_reviews} color="rose" />
-            <StatCard label="Pending Bids" value={stats.pending_bids} color="purple" />
-            <StatCard label="Completed" value={stats.completed_jobs} color="emerald" />
-            <StatCard label="Total Spent" value={`$${(stats.total_spent || 0).toFixed(2)}`} color="green" />
+            <StatCard
+              label="Projects"
+              value={stats.total_projects}
+              color="blue"
+            />
+            <StatCard
+              label="Active Jobs"
+              value={stats.active_jobs}
+              color="amber"
+            />
+            <StatCard
+              label="Pending Reviews"
+              value={stats.pending_reviews}
+              color="rose"
+            />
+            <StatCard
+              label="Pending Bids"
+              value={stats.pending_bids}
+              color="purple"
+            />
+            <StatCard
+              label="Completed"
+              value={stats.completed_jobs}
+              color="emerald"
+            />
+            <StatCard
+              label="Total Spent"
+              value={`$${(stats.total_spent || 0).toFixed(2)}`}
+              color="green"
+            />
           </div>
 
           <div className="flex gap-4">
@@ -91,19 +119,44 @@ export default function Dashboard({ user }) {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
-            <StatCard label="Claimed Jobs" value={stats.claimed_jobs} color="blue" />
-            <StatCard label="Active Bids" value={stats.active_bids} color="purple" />
-            <StatCard label="Completed" value={stats.completed} color="emerald" />
-            <StatCard label="Pending Review" value={stats.pending_review} color="amber" />
-            <StatCard label="Earnings" value={`$${(stats.earnings || 0).toFixed(2)}`} color="green" />
+            <StatCard
+              label="Claimed Jobs"
+              value={stats.claimed_jobs}
+              color="blue"
+            />
+            <StatCard
+              label="Active Bids"
+              value={stats.active_bids}
+              color="purple"
+            />
+            <StatCard
+              label="Completed"
+              value={stats.completed}
+              color="emerald"
+            />
+            <StatCard
+              label="Pending Review"
+              value={stats.pending_review}
+              color="amber"
+            />
+            <StatCard
+              label="Earnings"
+              value={`$${(stats.earnings || 0).toFixed(2)}`}
+              color="green"
+            />
           </div>
 
           {/* Connect CTA for testers who haven't onboarded */}
           {!data?.stripe_connect_onboarded && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-5 mb-8 flex items-center justify-between">
               <div>
-                <p className="font-medium text-amber-900">Set up payouts to receive earnings</p>
-                <p className="text-sm text-amber-700 mt-0.5">Connect your Stripe account so you get paid when builders approve your submissions.</p>
+                <p className="font-medium text-amber-900">
+                  Set up payouts to receive earnings
+                </p>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  Connect your Stripe account so you get paid when builders
+                  approve your submissions.
+                </p>
               </div>
               <Link
                 to="/settings"
@@ -123,23 +176,25 @@ export default function Dashboard({ user }) {
         </>
       )}
     </div>
-  )
+  );
 }
 
 const colorMap = {
-  blue: 'bg-primary-50 border-primary-200 text-primary-700',
-  amber: 'bg-amber-50 border-amber-200 text-amber-700',
-  rose: 'bg-rose-50 border-rose-200 text-rose-700',
-  emerald: 'bg-primary-50 border-primary-200 text-primary-700',
-  green: 'bg-primary-50 border-primary-200 text-primary-700',
-  purple: 'bg-purple-50 border-purple-200 text-purple-700',
-}
+  blue: "bg-primary-50 border-primary-200 text-primary-700",
+  amber: "bg-amber-50 border-amber-200 text-amber-700",
+  rose: "bg-rose-50 border-rose-200 text-rose-700",
+  emerald: "bg-primary-50 border-primary-200 text-primary-700",
+  green: "bg-primary-50 border-primary-200 text-primary-700",
+  purple: "bg-purple-50 border-purple-200 text-purple-700",
+};
 
 function StatCard({ label, value, color }) {
   return (
-    <div className={`rounded-lg border p-5 ${colorMap[color] || colorMap.blue}`}>
+    <div
+      className={`rounded-lg border p-5 ${colorMap[color] || colorMap.blue}`}
+    >
       <p className="text-sm font-medium opacity-75">{label}</p>
       <p className="text-3xl font-bold mt-1">{value ?? 0}</p>
     </div>
-  )
+  );
 }

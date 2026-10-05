@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test'
-import { qaEmail, qaPassword } from '../qa-identity'
+import { test, expect } from "@playwright/test";
+import { qaEmail, qaPassword } from "../qa-identity";
 
 /**
  * Authenticating journey for 3_community/8_Tester.
@@ -16,41 +16,53 @@ import { qaEmail, qaPassword } from '../qa-identity'
  * fleet has actually shipped -- the suite carries on, every later assertion runs
  * unauthenticated against the login page, and the run passes.
  */
-const API = process.env.E2E_API_URL || process.env.E2E_BASE_URL || 'https://tester.bialkowned.com'
+const API =
+  process.env.E2E_API_URL ||
+  process.env.E2E_BASE_URL ||
+  "https://tester.bialkowned.com";
 
-test.describe('3_community/8_Tester — authentication', () => {
-  test('an account can be provisioned and then signed in', async ({ request }) => {
-    const email = qaEmail('user')
-    const password = qaPassword()
+test.describe("3_community/8_Tester — authentication", () => {
+  test("an account can be provisioned and then signed in", async ({
+    request,
+  }) => {
+    const email = qaEmail("user");
+    const password = qaPassword();
 
     const registered = await request.post(`${API}/api/auth/register`, {
       data: {
         email: email,
         password: password,
-        first_name: 'QA',
-        last_name: 'Probe',
-        role: 'builder'
+        first_name: "QA",
+        last_name: "Probe",
+        role: "builder",
       },
-    })
+    });
     // 409/400 is fine: it means the account already exists, which is still a usable account.
-    expect([200, 201, 202, 400, 409],
-           `register returned ${registered.status()}: ${await registered.text()}`)
-      .toContain(registered.status())
+    expect(
+      [200, 201, 202, 400, 409],
+      `register returned ${registered.status()}: ${await registered.text()}`,
+    ).toContain(registered.status());
 
     const signedIn = await request.post(`${API}/api/auth/login`, {
       data: {
         email: email,
-        password: password
+        password: password,
       },
-    })
-    expect(signedIn.ok(),
-           `login failed ${signedIn.status()}: ${await signedIn.text()}`).toBeTruthy()
+    });
+    expect(
+      signedIn.ok(),
+      `login failed ${signedIn.status()}: ${await signedIn.text()}`,
+    ).toBeTruthy();
 
-    const body = await signedIn.json()
+    const body = await signedIn.json();
     const token =
-      body?.access_token ?? body?.token ?? body?.data?.access_token ??
-      body?.data?.token ?? body?.accessToken ?? body?.data?.accessToken
-    expect(token, 'signed in but no credential came back').toBeTruthy()
-    expect(String(token).length).toBeGreaterThan(20)
-  })
-})
+      body?.access_token ??
+      body?.token ??
+      body?.data?.access_token ??
+      body?.data?.token ??
+      body?.accessToken ??
+      body?.data?.accessToken;
+    expect(token, "signed in but no credential came back").toBeTruthy();
+    expect(String(token).length).toBeGreaterThan(20);
+  });
+});

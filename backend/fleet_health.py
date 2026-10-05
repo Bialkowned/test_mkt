@@ -30,6 +30,7 @@ So this sits in front, touches nothing but `GET /api/health` and `GET /health`, 
 Every request that is not `GET /health` takes one dict lookup and a return, so the cost to
 the serving path is not measurable.
 """
+
 from __future__ import annotations
 
 import json
@@ -76,8 +77,11 @@ class FleetHealth:
         self.service = service
 
     async def __call__(self, scope, receive, send):
-        if (scope.get("type") != "http" or scope.get("method") != "GET"
-                or scope.get("path") not in HEALTH_PATHS):
+        if (
+            scope.get("type") != "http"
+            or scope.get("method") != "GET"
+            or scope.get("path") not in HEALTH_PATHS
+        ):
             return await self.app(scope, receive, send)
 
         status: int | None = None
@@ -90,7 +94,7 @@ class FleetHealth:
             kind = message["type"]
             if kind == "http.response.start":
                 status, headers = message["status"], list(message.get("headers") or [])
-                return                      # withheld: the body decides what we send
+                return  # withheld: the body decides what we send
             if kind == "http.response.body":
                 body.extend(message.get("body") or b"")
                 if message.get("more_body"):
@@ -117,36 +121,54 @@ class FleetHealth:
         # document reveals nothing a caller could not already read. No downstream payload is
         # ever forwarded from an unauthorised response.
         if status in (404, 401, 403):
-            return await self._json(200, {"service": self.service, "status": "ok"}, send)
+            return await self._json(
+                200, {"service": self.service, "status": "ok"}, send
+            )
         if status is None or not (200 <= status < 300):
             return await self._raw(status or 500, headers, raw, send)
-        ctype = next((v.decode("latin-1") for k, v in headers
-                      if k.decode("latin-1").lower() == "content-type"), "")
+        ctype = next(
+            (
+                v.decode("latin-1")
+                for k, v in headers
+                if k.decode("latin-1").lower() == "content-type"
+            ),
+            "",
+        )
         if "json" not in ctype.lower():
             # A 200 that is not JSON on /health is almost always the SPA catch-all answering
             # for a route that does not exist -- engram returned its whole index.html here.
             # That is the failure STANDARDS.md opens by naming: an SPA returns 200 for a URL
             # with no route behind it, so "it responded" proves nothing. The convention wants
             # JSON that names the service, so answer for it rather than forwarding a page.
-            return await self._json(200, {"service": self.service, "status": "ok"}, send)
+            return await self._json(
+                200, {"service": self.service, "status": "ok"}, send
+            )
         try:
             doc = json.loads(raw or b"{}")
         except Exception:
             return await self._raw(status, headers, raw, send)
         if not isinstance(doc, dict) or _names_service(doc):
             return await self._raw(status, headers, raw, send)
-        return await self._json(status, _with_service(doc, self.service), send,
-                                headers=headers)
+        return await self._json(
+            status, _with_service(doc, self.service), send, headers=headers
+        )
 
     async def _json(self, status, doc, send, headers=None):
         raw = json.dumps(doc).encode()
-        keep = [(k, v) for k, v in (headers or [])
-                if k.decode("latin-1").lower() not in ("content-length", "content-type")]
-        keep += [(b"content-type", b"application/json"),
-                 (b"content-length", str(len(raw)).encode())]
+        keep = [
+            (k, v)
+            for k, v in (headers or [])
+            if k.decode("latin-1").lower() not in ("content-length", "content-type")
+        ]
+        keep += [
+            (b"content-type", b"application/json"),
+            (b"content-length", str(len(raw)).encode()),
+        ]
         await send({"type": "http.response.start", "status": status, "headers": keep})
         await send({"type": "http.response.body", "body": raw})
 
     async def _raw(self, status, headers, raw, send):
-        await send({"type": "http.response.start", "status": status, "headers": headers})
+        await send(
+            {"type": "http.response.start", "status": status, "headers": headers}
+        )
         await send({"type": "http.response.body", "body": raw})

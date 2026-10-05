@@ -24,8 +24,8 @@
  *     set -a; . ~/.config/bialkowned/secrets/3_community/8_Tester/qa.env; set +a
  */
 
-const PROGRAM = process.env.E2E_PROGRAM || 'tester';
-const DOMAIN = process.env.E2E_EMAIL_DOMAIN || 'example.com';
+const PROGRAM = process.env.E2E_PROGRAM || "tester";
+const DOMAIN = process.env.E2E_EMAIL_DOMAIN || "example.com";
 const RUN_ID =
   process.env.E2E_RUN_ID ||
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -42,8 +42,8 @@ export function qaPassword() {
   const value = process.env.E2E_PASSWORD;
   if (!value) {
     throw new Error(
-      'E2E_PASSWORD is not set. Load the program qa.env before running:\n' +
-        '  set -a; . ~/.config/bialkowned/secrets/3_community/8_Tester/qa.env; set +a'
+      "E2E_PASSWORD is not set. Load the program qa.env before running:\n" +
+        "  set -a; . ~/.config/bialkowned/secrets/3_community/8_Tester/qa.env; set +a",
     );
   }
   return value;
@@ -57,7 +57,7 @@ export function qaEmail(role: string) {
 
 /** True for any address this harness minted, in any run. */
 export function isQaEmail(email: string) {
-  return new RegExp(`^qa-${PROGRAM}-[a-z0-9]+-`, 'i').test(String(email || ''));
+  return new RegExp(`^qa-${PROGRAM}-[a-z0-9]+-`, "i").test(String(email || ""));
 }
 
 /**
@@ -79,18 +79,27 @@ export function isQaEmail(email: string) {
 export async function qaVerifyToken(email: string) {
   // Dynamic import rather than require(): this file is emitted as CommonJS for some
   // programs and true ESM for others, and require is undefined in the latter.
-  const { execFile } = await import('node:child_process');
-  const { promisify } = await import('node:util').then(m => m.default ?? m);
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util").then((m) => m.default ?? m);
   const run = promisify(execFile);
   const db = process.env.E2E_DB;
-  if (!db) throw new Error('E2E_DB is not set — qa.env must name the database to read from');
+  if (!db)
+    throw new Error(
+      "E2E_DB is not set — qa.env must name the database to read from",
+    );
   const python =
     process.env.E2E_SWEEP_PYTHON ||
-    `${process.env.FLEET_ROOT ?? process.env.HOME + '/Production'}/2_commercial/1_Bialkowned/bialkowned_erp/backend/venv/bin/python`;
+    `${process.env.FLEET_ROOT ?? process.env.HOME + "/Production"}/2_commercial/1_Bialkowned/bialkowned_erp/backend/venv/bin/python`;
   const { stdout } = await run(
     python,
-    [`${process.env.FLEET_ROOT ?? process.env.HOME + '/Production'}/2_commercial/1_Bialkowned/bialkowned_erp/backend/core/standards/qa_verify_token.py`, '--db', db, '--email', email],
-    { timeout: 30000 }
+    [
+      `${process.env.FLEET_ROOT ?? process.env.HOME + "/Production"}/2_commercial/1_Bialkowned/bialkowned_erp/backend/core/standards/qa_verify_token.py`,
+      "--db",
+      db,
+      "--email",
+      email,
+    ],
+    { timeout: 30000 },
   );
   return stdout.trim();
 }

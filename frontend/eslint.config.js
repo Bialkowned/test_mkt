@@ -1,10 +1,10 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import tseslint from 'typescript-eslint'
-import { defineConfig, globalIgnores } from 'eslint/config'
-import eslintConfigPrettier from 'eslint-config-prettier/flat'
+import js from "@eslint/js";
+import globals from "globals";
+import reactHooks from "eslint-plugin-react-hooks";
+import reactRefresh from "eslint-plugin-react-refresh";
+import tseslint from "typescript-eslint";
+import { defineConfig, globalIgnores } from "eslint/config";
+import eslintConfigPrettier from "eslint-config-prettier/flat";
 
 // The fleet's single eslint standard: eslint 9 with a flat config. There is one
 // format on purpose -- eslint 9 dropped .eslintrc support and eslint 8 is
@@ -26,13 +26,23 @@ export default defineConfig([
   // inside web/build/assets/index-*.js -- a minified bundle, not source. Both the
   // fleet's output names are listed because vite and the postbuild scripts have
   // disagreed about which one is real.
-  globalIgnores(['dist*/**', 'build*/**', '.dist-next/**', '.verify-build/**', '.next*/**', '**/._*', 
-    '**/dist/**', '**/build/**', '**/coverage/**',
-    '**/playwright-report/**', '**/test-results/**',
-    '**/node_modules/**', '**/*.min.js',
+  globalIgnores([
+    "dist*/**",
+    "build*/**",
+    ".dist-next/**",
+    ".verify-build/**",
+    ".next*/**",
+    "**/._*",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/playwright-report/**",
+    "**/test-results/**",
+    "**/node_modules/**",
+    "**/*.min.js",
   ]),
   {
-    files: ['**/*.{js,jsx,ts,tsx}'],
+    files: ["**/*.{js,jsx,ts,tsx}"],
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
@@ -50,11 +60,14 @@ export default defineConfig([
       // finding. Honouring the convention is not widening the rule: a name the author
       // marked unused on purpose is not the same as one left behind by accident, and
       // conflating them buries the accidental ones.
-      '@typescript-eslint/no-unused-vars': ['error', {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        caughtErrorsIgnorePattern: '^_',
-      }],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   {
@@ -63,12 +76,16 @@ export default defineConfig([
     // node, never in a page. Without this block `no-undef` fires on process, __dirname,
     // require and module -- findings that describe the config, not the code.
     files: [
-      '**/scripts/**/*.{js,ts}', '**/tests/**/*.{js,ts}', '**/*.config.{js,ts}',
-      '**/server.{js,ts}', '**/prerender.{js,ts}', '**/*.spec.{js,ts}',
+      "**/scripts/**/*.{js,ts}",
+      "**/tests/**/*.{js,ts}",
+      "**/*.config.{js,ts}",
+      "**/server.{js,ts}",
+      "**/prerender.{js,ts}",
+      "**/*.spec.{js,ts}",
     ],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
-      sourceType: 'commonjs',
+      sourceType: "commonjs",
     },
     rules: {
       // THESE DIRECTORIES ARE GENUINELY CommonJS: neither web/package.json nor
@@ -76,7 +93,7 @@ export default defineConfig([
       // require() is the correct call there. Reporting it would be asking working
       // files to adopt a module system their own package.json does not select --
       // and rewriting them to import would break them at runtime.
-      '@typescript-eslint/no-require-imports': 'off',
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
   {
@@ -85,13 +102,16 @@ export default defineConfig([
     // findings here, every one describing the config rather than the code. The glob
     // matches nothing in a program with no mobile app, so this block is inert there
     // rather than being a second config somebody has to keep in sync.
-    files: ['**/mobile/**/*.{js,jsx,ts,tsx}', '**/mobile-app/**/*.{js,jsx,ts,tsx}'],
+    files: [
+      "**/mobile/**/*.{js,jsx,ts,tsx}",
+      "**/mobile-app/**/*.{js,jsx,ts,tsx}",
+    ],
     languageOptions: {
-      globals: { ...globals.node, ...globals.jest, __DEV__: 'readonly' },
+      globals: { ...globals.node, ...globals.jest, __DEV__: "readonly" },
     },
-    rules: { '@typescript-eslint/no-require-imports': 'off' },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
   },
 
   // Last, so it switches off every stylistic rule Prettier owns.
   eslintConfigPrettier,
-])
+]);
