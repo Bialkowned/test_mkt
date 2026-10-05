@@ -2800,6 +2800,9 @@ async def get_stats():
     }
 
 
+# StaticFiles checks the directory at import, before the startup hook that creates it
+# runs, so a fresh checkout (no uploads/ yet) crashed on import.
+Path(UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 if __name__ == "__main__":

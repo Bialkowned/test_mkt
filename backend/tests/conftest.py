@@ -23,7 +23,13 @@ def pytest_configure(config):
     """Refuse to run at all rather than write into live data."""
     import importlib
 
-    for _mod in ("config.settings", "config.database", "app.config", "main", "settings"):
+    for _mod in (
+        "config.settings",
+        "config.database",
+        "app.config",
+        "main",
+        "settings",
+    ):
         try:
             _m = importlib.import_module(_mod)
         except Exception:
@@ -38,10 +44,14 @@ def pytest_configure(config):
                     _name = _name.split("/", 1)[1].strip("/") if "/" in _name else ""
                     assert _name == TEST_DATABASE, (
                         f"tests resolved database {_name!r}, not {TEST_DATABASE!r} -- "
-                        "refusing to run against a non-test database")
+                        "refusing to run against a non-test database"
+                    )
                     return
     raise AssertionError(
-        "could not determine which database this suite will use; refusing to run")
+        "could not determine which database this suite will use; refusing to run"
+    )
+
+
 # -----------------------------------------------------------------------------------
 import os
 import sys
@@ -52,10 +62,10 @@ os.environ["DATABASE_NAME"] = os.getenv("TEST_DATABASE_NAME", "Tester_Company_te
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
-import pytest                                                        # noqa: E402
-from fastapi.testclient import TestClient                            # noqa: E402
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
-from main import app                                                # noqa: E402
+from main import app  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -113,7 +123,8 @@ def _server_db():
     """
     name = _qa_os.environ["DATABASE_NAME"]
     assert name.endswith("_test"), (
-        f"refusing to clean up against {name!r}: not a test database")
+        f"refusing to clean up against {name!r}: not a test database"
+    )
     uri = _qa_os.getenv("MONGO_URI") or "mongodb://localhost:27017"
     return _qa_pymongo.MongoClient(uri, serverSelectionTimeoutMS=5000)[name]
 
@@ -126,15 +137,23 @@ def remove_what_this_run_created():
     try:
         db = _server_db()
         db.command("ping")
-    except Exception:                                                 # noqa: BLE001
-        return                       # no database reachable; nothing was written either
-    run_scoped_filter = {"email": {"$regex": f"^qa-tester-.*-{QA_RUN_ID}-"},
-                         "_id": {"$gte": _QaObjectId.from_datetime(started)}}
-    db.users.delete_many(run_scoped_filter)
+    except Exception:  # noqa: BLE001
+        return  # no database reachable; nothing was written either
+    run_scoped_filter = {
+        "email": {"$regex": f"^qa-tester-.*-{QA_RUN_ID}-"},
+        "_id": {"$gte": _QaObjectId.from_datetime(started)},
+    }
+    # user_accounts is where main.py keeps accounts (users_col); there is no
+    # collection, so cleaning  deleted nothing and the check below always read 0.
+    db.user_accounts.delete_many(run_scoped_filter)
     # Litter from before this fixture existed. Every address on the reserved test domain
     # is harness-made by construction, so it is swept once here rather than left to grow.
-    db.users.delete_many({"email": {"$regex": f"{_qa_re.escape(TEST_EMAIL_DOMAIN)}$"}})
+    db.user_accounts.delete_many(
+        {"email": {"$regex": f"{_qa_re.escape(TEST_EMAIL_DOMAIN)}$"}}
+    )
     # Cleanup code is not cleanup proof: a teardown that silently stopped working leaves
     # residue and reports nothing. This fails the run instead.
-    remaining = db.users.count_documents(run_scoped_filter)
-    assert remaining == 0, f"{remaining} account(s) from run {QA_RUN_ID} survived cleanup"
+    remaining = db.user_accounts.count_documents(run_scoped_filter)
+    assert remaining == 0, (
+        f"{remaining} account(s) from run {QA_RUN_ID} survived cleanup"
+    )

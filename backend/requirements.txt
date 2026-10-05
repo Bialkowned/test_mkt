@@ -10,7 +10,7 @@ pymongo==4.6.0
 python-dotenv>=1.0.0
 stripe>=8.0.0
 
-httpx>=0.25.0
+httpx==0.27.2  # pinned to what the live service runs; 0.28 removed the TestClient app= shim starlette 0.27 uses
 aiofiles>=23.0.0
 
 # Transactional mail goes through the fleet SES transport: `bialkowned-ses-transport`,
@@ -32,3 +32,6 @@ boto3==1.43.79
 # silently removed it, and the failure only surfaced at the next delivery.
 bialkowned-stripe-webhook @ file:///home/pjb/Production/_infra/wheels/bialkowned_stripe_webhook-1.7.1-py3-none-any.whl
 ruff==0.16.10  # formatter: ruff format (fleet standard)
+
+# Test runner (CI and local). Pinned to the version the live venv carries.
+pytest==9.1.1
