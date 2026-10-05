@@ -1,0 +1,19 @@
+# Build output, build backups and scratch builds
+dist*
+build*
+.dist-next
+.verify-build
+.next*
+coverage
+node_modules
+playwright-report
+test-results
+# Generated at build time
+public/sitemap.xml
+public/robots.txt
+public/routes.json
+routes.json
+# Lockfiles
+package-lock.json
+pnpm-lock.yaml
+yarn.lock

@@ -4,6 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
+import eslintConfigPrettier from 'eslint-config-prettier/flat'
 
 // The fleet's single eslint standard: eslint 9 with a flat config. There is one
 // format on purpose -- eslint 9 dropped .eslintrc support and eslint 8 is
@@ -90,4 +91,7 @@ export default defineConfig([
     },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
+
+  // Last, so it switches off every stylistic rule Prettier owns.
+  eslintConfigPrettier,
 ])

@@ -31,3 +31,4 @@ boto3==1.43.79
 # Declared here because it was NOT: a plain `pip install -r requirements.txt`
 # silently removed it, and the failure only surfaced at the next delivery.
 bialkowned-stripe-webhook @ file:///home/pjb/Production/_infra/wheels/bialkowned_stripe_webhook-1.7.1-py3-none-any.whl
+ruff==0.16.10  # formatter: ruff format (fleet standard)
