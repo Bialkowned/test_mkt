@@ -134,7 +134,12 @@ function wouldShrink(file) {
   }
 }
 
-for (const dir of [path.join(webRoot, "public"), dist]) {
+// The build output only. Writing public/ too rewrote a TRACKED file with today's
+// <lastmod> on every build, so every deploy left the live checkout dirty and the
+// next deploy refused to build over it (2026-10-13: 59 of 63 programs). vite has
+// already copied public/ into dist, so an existing robots.txt or a larger
+// hand-kept sitemap is read from there and preserved exactly as before.
+for (const dir of [dist]) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const target = path.join(dir, "sitemap.xml");
   if (wouldShrink(target)) {

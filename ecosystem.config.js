@@ -27,9 +27,9 @@ module.exports = {
     {
       name: 'testmkt-frontend',
       cwd: path.join(__dirname, './frontend'),
-      script: '/usr/bin/npx',
-      interpreter: '/usr/bin/node',
-      args: 'serve -s dist -l tcp://127.0.0.1:5008',
+      script: path.join(__dirname, "./frontend/server.mjs"),
+      interpreter: "/usr/bin/node",
+      args: "",
       env: {
         NODE_ENV: 'production',
         PORT: '5008'

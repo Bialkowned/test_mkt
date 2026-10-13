@@ -125,3 +125,10 @@ test-results/
 !*.template
 playwright-report/
 .claude-*cache.json
+
+# deploy snapshots and build caches
+*.prev-*/
+*.broken-*/
+*.old/
+*.tsbuildinfo
+._*
