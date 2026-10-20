@@ -20,6 +20,7 @@ import Settings from "./pages/Settings";
 import Pricing from "./pages/Pricing";
 import TesterProfile from "./pages/TesterProfile";
 import CreateJob from "./pages/CreateJob";
+import NotFound from "./pages/NotFound";
 
 function ChatBubble() {
   const [open, setOpen] = useState(false);
@@ -327,6 +328,7 @@ function App() {
                 user ? <Settings user={user} /> : <Navigate to="/login" />
               }
             />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         )}
         <ChatBubble />

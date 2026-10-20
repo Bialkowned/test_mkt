@@ -6,6 +6,7 @@ import axios from "axios";
 
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
+import NotFound from "./pages/NotFound";
 import Pricing from "./pages/Pricing";
 import Projects from "./pages/Projects";
 import Settings from "./pages/Settings";
@@ -297,5 +298,14 @@ describe("/testers/:slug", () => {
     );
 
     expect(page.textContent).toContain("Profile not found");
+  });
+});
+
+describe("unknown route", () => {
+  it("tells the user the page does not exist", async () => {
+    const page = await visit("/qa-probe-no-such-route", "*", <NotFound />);
+
+    expect(page.querySelector("h1")?.textContent).toBe("Page not found");
+    expect(page.querySelector('a[href="/"]')).not.toBeNull();
   });
 });
