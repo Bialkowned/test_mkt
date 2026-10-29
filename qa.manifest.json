@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "qa": {
+    "signed_in_path": "/dashboard",
+    "core_flow": {
+      "name": "create_project",
+      "list_path": "/projects",
+      "form_path": null,
+      "open": "New Project",
+      "fields": [
+        {"label": "Project Name", "value": "{tag}"},
+        {"label": "Description", "value": "QA harness project description"},
+        {"label": "Hosted URL", "value": "https://example.com"}
+      ],
+      "submit": "Create Project",
+      "db": {"collection": "projects", "field": "name"}
+    },
+    "privileged_route": "/api/stripe/connect/status"
+  }
+}
