@@ -88,6 +88,7 @@ export default function Settings({ user }) {
     onboarded: false,
     account_id: null,
   });
+  const [connectError, setConnectError] = useState("");
   const [loading, setLoading] = useState(true);
   const [onboarding, setOnboarding] = useState(false);
   const [error, setError] = useState("");
@@ -107,9 +108,13 @@ export default function Settings({ user }) {
   const fetchConnectStatus = async () => {
     try {
       const res = await axios.get("/api/stripe/connect/status");
+      setConnectError("");
       setConnectStatus(res.data);
     } catch (err) {
       console.error("failed to load Stripe Connect status", err);
+      setConnectError(
+        "We couldn't load your payout status, so this may not reflect your Stripe account. Refresh the page to try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -432,7 +437,14 @@ export default function Settings({ user }) {
                 </div>
 
                 <div className="px-5 py-5">
-                  {connectStatus.onboarded ? (
+                  {connectError ? (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2 rounded-md bg-red-50 px-3 py-2.5 text-sm text-red-700"
+                    >
+                      {connectError}
+                    </div>
+                  ) : connectStatus.onboarded ? (
                     <div className="flex items-start gap-3">
                       <div className="w-9 h-9 bg-primary-100 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
                         <svg

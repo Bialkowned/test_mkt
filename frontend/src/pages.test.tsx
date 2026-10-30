@@ -262,6 +262,19 @@ describe("/settings", () => {
     expect(container.textContent).toContain("Connected");
     expect(container.textContent).not.toContain("Connect Stripe");
   });
+
+  it("reports a failed payout-status load instead of offering to connect", async () => {
+    respond({});
+    await visit("/settings", "/settings", <Settings user={tester} />);
+
+    await act(async () => {
+      button("Payouts").click();
+    });
+    expect(container.textContent).toContain(
+      "We couldn't load your payout status",
+    );
+    expect(container.textContent).not.toContain("Connect Stripe");
+  });
 });
 
 describe("/testers/:slug", () => {
