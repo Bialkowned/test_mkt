@@ -11,7 +11,7 @@
  * The cost of self-provisioning is litter, so addresses are namespaced rather than merely
  * unique:
  *
- *     qa-tester-<role>-<runId>-<n>@<domain>
+ *     qa+tester-<role>-<runId>-<n>@bialkowned.com
  *
  * `qa-` marks the account as harness-made, `tester` keeps this program's cleanup off every
  * other program's rows, and <runId> groups one run so teardown is exact rather than
@@ -25,7 +25,8 @@
  */
 
 const PROGRAM = process.env.E2E_PROGRAM || "tester";
-const DOMAIN = process.env.E2E_EMAIL_DOMAIN || "example.com";
+// Every test account is on bialkowned.com (qa@ is a real alias; check_test_addresses.py).
+const DOMAIN = "bialkowned.com";
 const RUN_ID =
   process.env.E2E_RUN_ID ||
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -52,12 +53,12 @@ export function qaPassword() {
 /** A fresh, namespaced address for one role in this run. */
 export function qaEmail(role: string) {
   counter += 1;
-  return `qa-${PROGRAM}-${role}-${RUN_ID}-${counter}@${DOMAIN}`;
+  return `qa+${PROGRAM}-${role}-${RUN_ID}-${counter}@${DOMAIN}`;
 }
 
 /** True for any address this harness minted, in any run. */
 export function isQaEmail(email: string) {
-  return new RegExp(`^qa-${PROGRAM}-[a-z0-9]+-`, "i").test(String(email || ""));
+  return new RegExp(`^qa[-+]${PROGRAM}-[a-z0-9]+-`, "i").test(String(email || ""));
 }
 
 /**

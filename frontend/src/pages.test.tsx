@@ -27,13 +27,13 @@ vi.mock("axios", () => ({
 const get = vi.mocked(axios.get);
 
 const builder = {
-  email: "bea@example.com",
+  email: "qa+tester-bea@bialkowned.com",
   first_name: "Bea",
   last_name: "Builder",
   role: "builder",
 };
 const tester = {
-  email: "tom@example.com",
+  email: "qa+tester-tom@bialkowned.com",
   first_name: "Tom",
   last_name: "Tester",
   role: "tester",

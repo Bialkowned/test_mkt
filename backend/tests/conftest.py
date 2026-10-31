@@ -104,13 +104,17 @@ import pymongo as _qa_pymongo
 import pytest as _qa_pytest
 
 QA_RUN_ID = _qa_os.getenv("QA_RUN_ID") or _qa_uuid.uuid4().hex[:12]
-TEST_EMAIL_DOMAIN = "@testenv.com"
+# Every test account is qa+<slug>-...@bialkowned.com (check_test_addresses.py in the ERP).
+# The old reserved domain is kept ONLY to sweep litter earlier runs left on it -- never
+# sweep by the bialkowned.com domain, which real accounts share.
+LEGACY_TEST_EMAIL_DOMAIN = "@testenv.com"
+QA_EMAIL_PREFIX = "qa+tester-"
 _qa_email_seq = _qa_itertools.count(1)
 
 
 def qa_email(role: str = "user") -> str:
     """A fresh, run-scoped address for one role in this run."""
-    return f"qa-tester-{role}-{QA_RUN_ID}-{next(_qa_email_seq)}{TEST_EMAIL_DOMAIN}"
+    return f"{QA_EMAIL_PREFIX}{role}-{QA_RUN_ID}-{next(_qa_email_seq)}@bialkowned.com"
 
 
 def _server_db():
@@ -140,7 +144,7 @@ def remove_what_this_run_created():
     except Exception:  # noqa: BLE001
         return  # no database reachable; nothing was written either
     run_scoped_filter = {
-        "email": {"$regex": f"^qa-tester-.*-{QA_RUN_ID}-"},
+        "email": {"$regex": f"^{_qa_re.escape(QA_EMAIL_PREFIX)}.*-{QA_RUN_ID}-"},
         "_id": {"$gte": _QaObjectId.from_datetime(started)},
     }
     # user_accounts is where main.py keeps accounts (users_col); there is no
@@ -149,7 +153,7 @@ def remove_what_this_run_created():
     # Litter from before this fixture existed. Every address on the reserved test domain
     # is harness-made by construction, so it is swept once here rather than left to grow.
     db.user_accounts.delete_many(
-        {"email": {"$regex": f"{_qa_re.escape(TEST_EMAIL_DOMAIN)}$"}}
+        {"email": {"$regex": f"{_qa_re.escape(LEGACY_TEST_EMAIL_DOMAIN)}$"}}
     )
     # Cleanup code is not cleanup proof: a teardown that silently stopped working leaves
     # residue and reports nothing. This fails the run instead.
