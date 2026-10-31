@@ -173,13 +173,15 @@ export default function Projects({ user }) {
       )}
 
       {projects.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-          <p className="text-gray-500 text-lg">
-            {user.role === "builder"
-              ? 'You haven\'t created any projects yet. Click "New Project" to get started.'
-              : "No projects available yet."}
-          </p>
-        </div>
+        error ? null : (
+          <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
+            <p className="text-gray-500 text-lg">
+              {user.role === "builder"
+                ? 'You haven\'t created any projects yet. Click "New Project" to get started.'
+                : "No projects available yet."}
+            </p>
+          </div>
+        )
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((p) => (
