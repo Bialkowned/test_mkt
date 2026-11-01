@@ -6,6 +6,7 @@ export default function Onboarding({ user, setUser }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendMsg, setResendMsg] = useState("");
+  const [resendError, setResendError] = useState("");
   const inputRef = useRef(null);
 
   const handleVerifyCode = async (e) => {
@@ -27,13 +28,14 @@ export default function Onboarding({ user, setUser }) {
 
   const handleResend = async () => {
     setResendMsg("");
+    setResendError("");
     setError("");
     try {
       await axios.post("/api/auth/resend-verification-code");
       setResendMsg("New code sent! Check your inbox.");
       setCode("");
     } catch (err) {
-      setResendMsg(err.response?.data?.detail || "Failed to resend");
+      setResendError(err.response?.data?.detail || "Failed to resend");
     }
   };
 
@@ -70,6 +72,11 @@ export default function Onboarding({ user, setUser }) {
             {resendMsg && (
               <p className="mt-3 text-sm text-primary-600 text-center">
                 {resendMsg}
+              </p>
+            )}
+            {resendError && (
+              <p className="mt-3 text-sm text-red-600 text-center">
+                {resendError}
               </p>
             )}
 
