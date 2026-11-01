@@ -58,7 +58,9 @@ export function qaEmail(role: string) {
 
 /** True for any address this harness minted, in any run. */
 export function isQaEmail(email: string) {
-  return new RegExp(`^qa[-+]${PROGRAM}-[a-z0-9]+-`, "i").test(String(email || ""));
+  return new RegExp(`^qa[-+]${PROGRAM}-[a-z0-9]+-`, "i").test(
+    String(email || ""),
+  );
 }
 
 /**
