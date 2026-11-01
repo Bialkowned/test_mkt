@@ -172,6 +172,14 @@ describe("/jobs", () => {
     expect(page.textContent).toContain("Signup audit");
     expect(page.textContent).not.toContain("Checkout flow");
   });
+
+  it("reports a failed job load instead of an empty board", async () => {
+    respond({ "/api/bids": [] });
+    const page = await visit("/jobs", "/jobs", <Jobs user={tester} />);
+
+    expect(page.textContent).toContain("Failed to load jobs");
+    expect(page.textContent).not.toContain("No jobs available");
+  });
 });
 
 describe("/pricing", () => {
@@ -226,6 +234,20 @@ describe("/projects", () => {
     );
 
     expect(page.textContent).toContain("You haven't created any projects yet.");
+  });
+
+  it("reports a failed load instead of the empty state", async () => {
+    respond({});
+    const page = await visit(
+      "/projects",
+      "/projects",
+      <Projects user={builder} />,
+    );
+
+    expect(page.textContent).toContain("Failed to load projects");
+    expect(page.textContent).not.toContain(
+      "You haven't created any projects yet.",
+    );
   });
 });
 

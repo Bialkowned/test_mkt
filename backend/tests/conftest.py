@@ -1,7 +1,7 @@
 """Point the application at a test database BEFORE it is imported.
 
 THE ORDER IS THE WHOLE THING. Settings are read once, at import, and often cached -- so a
-redirect written after `from main import app` changes nothing at all: the application has
+redirect written after `from app.main import app` changes nothing at all: the application has
 already resolved and opened the live database by then.
 
 DATABASE_NAME is the fleet-standard key (CON-001), which is why this one assignment is
@@ -27,6 +27,7 @@ def pytest_configure(config):
         "config.settings",
         "config.database",
         "app.config",
+        "app.main",
         "main",
         "settings",
     ):
@@ -65,7 +66,7 @@ sys.path.insert(0, str(BACKEND))
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from main import app  # noqa: E402
+from app.main import app  # noqa: E402
 
 
 @pytest.fixture(scope="session")

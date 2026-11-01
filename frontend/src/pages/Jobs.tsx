@@ -94,6 +94,7 @@ export default function Jobs({ user }) {
       setBids(res.data);
     } catch (err) {
       console.error("failed to load bids", err);
+      setError("Failed to load bids");
     }
   };
 
@@ -455,10 +456,12 @@ export default function Jobs({ user }) {
         )}
 
         {jobs.length === 0 ? (
-          <EmptyState
-            title="No jobs yet"
-            subtitle="Create a project first, then add test jobs to get feedback."
-          />
+          error ? null : (
+            <EmptyState
+              title="No jobs yet"
+              subtitle="Create a project first, then add test jobs to get feedback."
+            />
+          )
         ) : (
           <div className="space-y-8">
             {Object.entries(grouped).map(
@@ -548,10 +551,12 @@ export default function Jobs({ user }) {
 
       {tab === "bids" ? (
         bids.length === 0 ? (
-          <EmptyState
-            title="No bids yet"
-            subtitle="Browse available jobs and place a bid on structured work to get started."
-          />
+          error ? null : (
+            <EmptyState
+              title="No bids yet"
+              subtitle="Browse available jobs and place a bid on structured work to get started."
+            />
+          )
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {bids.map((bid) => (
@@ -560,16 +565,18 @@ export default function Jobs({ user }) {
           </div>
         )
       ) : activeList.length === 0 ? (
-        <EmptyState
-          title={
-            tab === "available" ? "No jobs available" : "Nothing claimed yet"
-          }
-          subtitle={
-            tab === "available"
-              ? "Check back soon — new jobs are posted regularly."
-              : "Claim a quick job or bid on structured work to see it here."
-          }
-        />
+        error ? null : (
+          <EmptyState
+            title={
+              tab === "available" ? "No jobs available" : "Nothing claimed yet"
+            }
+            subtitle={
+              tab === "available"
+                ? "Check back soon — new jobs are posted regularly."
+                : "Claim a quick job or bid on structured work to see it here."
+            }
+          />
+        )
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {activeList.map((job) => (

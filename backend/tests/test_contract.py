@@ -14,7 +14,7 @@ import pytest
 from fastapi.routing import APIRoute
 from starlette.routing import Mount
 
-from main import app
+from app.main import app
 
 
 def _api_routes(application=app, prefix=""):
