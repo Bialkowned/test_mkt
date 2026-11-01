@@ -108,7 +108,7 @@ QA_RUN_ID = _qa_os.getenv("QA_RUN_ID") or _qa_uuid.uuid4().hex[:12]
 # Every test account is qa+<slug>-...@bialkowned.com (check_test_addresses.py in the ERP).
 # The old reserved domain is kept ONLY to sweep litter earlier runs left on it -- never
 # sweep by the bialkowned.com domain, which real accounts share.
-LEGACY_TEST_EMAIL_DOMAIN = "@testenv.com"
+LEGACY_TEST_EMAIL_DOMAIN = "@testenv.com"  # not-a-test-account: sweeps rows older runs left on the old domain
 QA_EMAIL_PREFIX = "qa+tester-"
 _qa_email_seq = _qa_itertools.count(1)
 
